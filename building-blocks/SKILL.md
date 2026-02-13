@@ -5,155 +5,75 @@ description: DeFi legos and protocol composability on Ethereum. Major protocols 
 
 # Building Blocks (DeFi Legos)
 
-## The Core Idea
+## What You Probably Got Wrong
 
-Every smart contract on Ethereum can call every other smart contract. This means you can snap together existing protocols like Lego bricks to create novel products without building everything from scratch.
+**DeFi TVL:** Ethereum DeFi TVL is **$50B+** (Feb 2026). If you're quoting numbers from 2023-2024, they're stale.
 
-**Example:** A "no-loss prediction market" = prediction market protocol + yield-bearing vault. Users bet on outcomes, but their stakes earn yield while locked. Losers get their principal back (from the yield). This is a *composition* of existing building blocks.
+**Uniswap V4:** V4 introduced a **hooks system** — custom logic attached to pools (dynamic fees, TWAMM, limit orders, custom oracles). This is a major composability upgrade.
+<!-- VERIFICATION NEEDED: V4 deployment status and mainnet addresses -->
 
-## Major Protocols
+**Costs changed everything:** A flash loan arbitrage on mainnet costs ~$0.05-0.50 in gas now (was $5-50). This opens composability patterns that were previously uneconomical.
 
-### Uniswap — Decentralized Exchange (DEX)
+## Key Protocol Addresses (Verified Feb 2026)
 
-**What it does:** Automated token swapping. Anyone can trade any ERC-20 token pair.
+| Protocol | Contract | Mainnet Address |
+|----------|----------|-----------------|
+| Uniswap V2 Router | Router | `0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D` |
+| Uniswap V2 Factory | Factory | `0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f` |
+| Uniswap V3 Factory | Factory | `0x1F98431c8aD98523631AE4a59f267346ea31F984` |
+| Uniswap V3 SwapRouter02 | Router | `0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45` |
+| Uniswap Universal Router | Router | `0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD` |
+| Aave V3 Pool | Pool | `0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2` |
 
-**Versions:**
-- **V2:** Simple x*y=k AMM. Still widely used. Router: `0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D` (mainnet)
-- **V3:** Concentrated liquidity — LPs choose price ranges. More capital efficient.
-- **V4:** Hooks system — custom logic can be attached to pools (fees, oracles, limit orders, etc.)
+See `addresses/SKILL.md` for complete multi-chain address list.
 
-**Build on it:**
-- Integrate swaps into your app using the Uniswap Router
-- Build custom V4 hooks for novel pool behavior
-- Use as a price oracle (V3 TWAP)
-- Create liquidity mining programs on top of LP positions
+## Uniswap V4 Hooks (New)
 
-**V4 Hooks (New):**
-Hooks let you add custom logic that runs before/after swaps, liquidity changes, and donations. Examples:
-- Dynamic fees that change based on volatility
-- TWAMM (time-weighted average market maker)
-- Limit orders built into the pool
-- Custom oracle integration
+Hooks let you add custom logic that runs before/after swaps, liquidity changes, and donations:
 
-<!-- VERIFICATION NEEDED: V4 deployment status and addresses -->
+- **Dynamic fees** that adjust based on volatility
+- **TWAMM** (time-weighted average market maker)
+- **Limit orders** built into the pool
+- **Custom oracle** integration
+- **MEV protection** hooks
 
-### Aave — Lending & Borrowing
+This is the biggest composability upgrade since flash loans.
 
-**What it does:** Deposit assets to earn yield. Borrow against your deposits as collateral.
+## Composability Patterns (Updated for 2026 Gas)
 
-**Key concepts:**
-- **Supply:** Deposit tokens, receive aTokens (interest-bearing)
-- **Borrow:** Use deposits as collateral to borrow other tokens
-- **Liquidation:** If collateral value drops below threshold, anyone can liquidate the position
-- **Flash Loans:** Borrow any amount with zero collateral, as long as you repay in the same transaction
+These patterns are now **economically viable** even for small amounts due to sub-dollar gas:
 
-**Mainnet V3 Pool:** `0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2`
+### Flash Loan Arbitrage
+Borrow from Aave → swap on Uniswap for profit → repay Aave. All in one transaction. If unprofitable, reverts (lose only gas: ~$0.05-0.50).
 
-**Build on it:**
-- Yield strategies — deposit idle assets to earn
-- Leverage loops — deposit, borrow, deposit again
-- Flash loan arbitrage
-- Liquidation bots
-- Yield vaults that auto-compound Aave deposits
+### Leveraged Yield Farming
+Deposit ETH on Aave → borrow stablecoin → swap for more ETH → deposit again → repeat. Gas cost per loop: ~$0.02 on mainnet, negligible on L2.
 
-### Compound — Lending & Borrowing
+### Meta-Aggregation
+Route swaps across multiple DEXs for best execution. 1inch and Paraswap check Uniswap, Curve, Sushi simultaneously.
 
-**What it does:** Similar to Aave — supply assets to earn, borrow against collateral.
+### ERC-4626 Yield Vaults
+Standard vault interface for yield strategies. Deposit tokens → vault farms across protocols → auto-compounds. Yearn V3, most modern vaults use ERC-4626.
 
-**V3 (Compound III / Comet):** Simplified model — each market has one borrowable asset and multiple collateral assets.
+## Building on Arbitrum (Highest DeFi Liquidity L2)
 
-**Build on it:** Similar to Aave. Some protocols integrate both for best rates.
+Key protocols on Arbitrum:
+- **GMX** — perps DEX, $500M+ TVL
+- **Uniswap, Curve, Balancer** — DEXs
+- **Radiant, Aave** — lending
+- **Pendle** — yield trading
 
-### MakerDAO / Sky — Stablecoin & Lending
+## Discovery Resources
 
-**What it does:** Issues DAI (now transitioning to USDS/Sky), a decentralized stablecoin backed by crypto collateral.
+- **DeFi Llama:** https://defillama.com — TVL rankings, yield rankings, all chains
+- **Dune Analytics:** https://dune.com — query on-chain data
+- **ethereum.org/en/dapps/** — curated list
 
-**Key concepts:**
-- **Vaults (CDPs):** Lock collateral, mint DAI/USDS against it
-- **Stability fee:** Interest rate on borrowed DAI
-- **DSR (DAI Savings Rate):** Earn yield by depositing DAI
+## Guardrails for Composability
 
-**Build on it:**
-- Use DAI as a stable unit of account in your app
-- Build on the DSR for yield-bearing stablecoin features
-- Create vault management tools
-
-### Yearn Finance — Yield Aggregation
-
-**What it does:** Automatically finds the best yield across DeFi protocols and moves funds accordingly.
-
-**Key concepts:**
-- **Vaults (ERC-4626):** Deposit tokens, Yearn strategies optimize yield
-- **Strategies:** Automated yield farming strategies that compound returns
-
-**Build on it:**
-- Use Yearn vaults as a yield backend for your app
-- Build ERC-4626-compatible vaults that plug into the Yearn ecosystem
-- Compose with Yearn for "set and forget" yield on idle funds
-
-### Curve Finance — Stablecoin & Like-Asset DEX
-
-**What it does:** Optimized for trading assets that should be near-equal in value (stablecoins, wrapped tokens like wETH/ETH, wBTC/renBTC).
-
-**Build on it:**
-- Best execution for stablecoin swaps
-- Compose with Curve pools for stablecoin-heavy applications
-- CRV tokenomics and vote-locking (veCRV) for protocol incentives
-
-## Composability Patterns
-
-### Pattern 1: Flash Loan Arbitrage
-Borrow from Aave → swap on Uniswap for profit → repay Aave. All in one transaction. If the trade isn't profitable, the entire transaction reverts (you lose nothing except gas).
-
-### Pattern 2: Leveraged Yield Farming
-Deposit ETH on Aave → borrow stablecoin → swap for more ETH → deposit again → repeat. Amplifies yield (and risk).
-
-### Pattern 3: No-Loss Games
-Users deposit tokens → tokens earn yield in Aave/Yearn → yield funds prizes → losers get principal back. PoolTogether pioneered this pattern.
-
-### Pattern 4: Meta-Aggregation
-Route swaps across multiple DEXs for best execution. 1inch and Paraswap do this — they check Uniswap, Curve, Sushi, and others to find the best price.
-
-### Pattern 5: Yield Vaults
-Deposit tokens → vault strategy farms across multiple protocols → auto-compounds → users earn optimized yield. Yearn V3 uses ERC-4626 for this.
-
-## Building a "Vault with Best Yield on Arbitrum"
-
-Step-by-step for an agent:
-
-1. **Research current yields on Arbitrum:**
-   - Aave V3 on Arbitrum — check supply APY for target asset
-   - Compound V3 on Arbitrum — compare
-   - GMX — GLP/GM tokens for leveraged yield
-   - Pendle — yield trading
-   - Radiant — lending on Arbitrum
-
-2. **Choose a strategy:**
-   - Single asset lending (lowest risk, moderate yield)
-   - LP provision on Uniswap V3 (higher yield, impermanent loss risk)
-   - Leveraged lending loop (higher yield, liquidation risk)
-
-3. **Build the vault:**
-   - Use ERC-4626 standard for the vault interface
-   - Implement deposit/withdraw with the chosen strategy
-   - Add auto-compounding if applicable
-
-4. **Deploy on Arbitrum:**
-   - Same Solidity, just target Arbitrum RPC
-   - Verify on Arbiscan
-
-## Discovering What's Available
-
-- **ethereum.org/en/dapps/** — curated list of Ethereum applications
-- **DeFi Llama:** https://defillama.com — TVL rankings, yield rankings, protocol comparisons across all chains
-- **DeFi Pulse:** Protocol rankings and analytics
-- **Dune Analytics:** https://dune.com — query on-chain data, find protocol metrics
-
-## Guardrails
-
-- **Smart contract risk:** Every protocol you compose with is a dependency. If Aave gets hacked, your vault that depends on Aave is affected.
-- **Oracle risk:** DeFi protocols depend on price oracles. Oracle manipulation = exploits.
-- **Impermanent loss:** Providing liquidity to AMMs means you may end up with less value than just holding.
-- **Liquidation risk:** Leveraged positions can be liquidated. Always monitor health factors.
-- **Always audit your compositions.** The interaction between two safe contracts can create unsafe behavior.
-- **Start with small amounts.** Test with minimal value before scaling up.
+- **Every protocol you compose with is a dependency.** If Aave gets hacked, your vault depending on Aave is affected.
+- **Oracle manipulation = exploits.** Verify oracle sources.
+- **Impermanent loss** is real for AMM LPs. Quantify it before providing liquidity.
+- **The interaction between two safe contracts can create unsafe behavior.** Audit compositions.
+- **Start with small amounts.** Test with minimal value before scaling.
+- **Flash loan attacks** can manipulate prices within a single transaction. Design for this.
