@@ -162,6 +162,85 @@ h2 {
   padding-top: 1rem;
   border-top: 1px solid var(--border);
 }
+
+/* Modal */
+.skill { cursor: pointer; }
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  animation: fadeIn 0.2s ease;
+}
+.modal-backdrop.open { display: flex; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-width: 720px;
+  width: 100%;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.25s ease;
+}
+@keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.modal-header-actions { display: flex; align-items: center; gap: 0.75rem; }
+.modal-title { color: var(--accent); font-size: 15px; font-weight: 600; }
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  font-size: 20px;
+  transition: color 0.15s;
+}
+.modal-close:hover { color: var(--fg); }
+
+.modal-body {
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.modal-body h1, .modal-body h2, .modal-body h3 { color: var(--accent); margin: 1.25em 0 0.5em 0; font-weight: 600; }
+.modal-body h1 { font-size: 1.35em; }
+.modal-body h2 { font-size: 1.15em; }
+.modal-body h3 { font-size: 1.05em; }
+.modal-body p { margin: 0.75em 0; }
+.modal-body ul, .modal-body ol { margin: 0.75em 0; padding-left: 1.5em; }
+.modal-body li { margin: 0.35em 0; }
+.modal-body code { background: var(--hover); color: var(--accent); padding: 0.15em 0.4em; border-radius: 3px; font-size: 0.92em; }
+.modal-body pre { background: var(--hover); border: 1px solid var(--border); border-radius: 3px; padding: 1rem; overflow-x: auto; margin: 1em 0; }
+.modal-body pre code { background: none; padding: 0; color: var(--fg); }
+.modal-body blockquote { border-left: 3px solid var(--accent); margin: 1em 0; padding-left: 1em; color: var(--dim); }
+.modal-body table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 13px; }
+.modal-body th, .modal-body td { border: 1px solid var(--border); padding: 0.4rem 0.6rem; text-align: left; }
+.modal-body th { background: var(--hover); color: var(--accent); }
+.modal-body a { color: var(--accent); }
+.modal-body strong { color: var(--fg); font-weight: 600; }
+
+.modal-loading { color: var(--dim); }
+.modal-error { color: #c94a4a; }
 </style>
 </head>
 <body>
@@ -250,12 +329,114 @@ h2 {
 
 <div class="footer">MIT License · <a href="https://github.com/austintgriffith/ethskills">Site</a> · <a href="https://github.com/austintgriffith/ethskills-research">Research</a></div>
 
+<div id="modal" class="modal-backdrop" aria-hidden="true">
+  <div class="modal-box" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Skill</span>
+      <div class="modal-header-actions">
+        <button type="button" class="copy-btn" id="modal-copy-btn" data-url="" title="Copy skill URL"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> <span id="modal-copy-label"></span></button>
+        <a class="copy-btn" id="modal-edit-btn" href="#" target="_blank" rel="noopener" title="Edit on GitHub">Edit</a>
+        <button type="button" class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
 <script>
-document.querySelectorAll('[data-url]').forEach(btn => {
-  btn.addEventListener('click', async () => {
+// Minimal markdown → HTML (no external deps). Escapes HTML in text.
+function renderMarkdown(md) {
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const inline = s => esc(s)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  let raw = md.replace(/\r\n?/g, '\n');
+  if (raw.startsWith('---\n')) {
+    const end = raw.indexOf('\n---', 4);
+    if (end !== -1) raw = raw.slice(end + 4).replace(/^\n+/, '');
+  }
+  let out = '';
+  const lines = raw.split('\n');
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^```(\w*)\s*$/.test(line)) {
+      let block = '';
+      for (i++; i < lines.length && !/^```\s*$/.test(lines[i]); i++) block += esc(lines[i]) + '\n';
+      i++;
+      out += '<pre><code>' + block + '</code></pre>';
+      continue;
+    }
+    if (/^(#{1,3})\s+(.+)$/.test(line)) {
+      const l = RegExp.$1.length;
+      out += '<h' + l + '>' + inline(RegExp.$2) + '</h' + l + '>';
+      i++;
+      continue;
+    }
+    if (/^\|.+\|$/.test(line)) {
+      const rows = [];
+      while (i < lines.length && /^\|.+\|$/.test(lines[i])) {
+        if (!/^\|[-:\s|]+\|$/.test(lines[i])) {
+          rows.push(lines[i].split('|').slice(1, -1).map(c => c.trim()));
+        }
+        i++;
+      }
+      if (rows.length) {
+        out += '<table><thead><tr>';
+        rows[0].forEach(c => { out += '<th>' + inline(c) + '</th>'; });
+        out += '</tr></thead><tbody>';
+        for (let r = 1; r < rows.length; r++) {
+          out += '<tr>';
+          rows[r].forEach(c => { out += '<td>' + inline(c) + '</td>'; });
+          out += '</tr>';
+        }
+        out += '</tbody></table>';
+      }
+      continue;
+    }
+    if (/^>\s?(.*)$/.test(line)) {
+      let block = inline(RegExp.$1);
+      for (i++; i < lines.length && /^>\s?(.*)$/.test(lines[i]); i++) block += '\n' + inline(RegExp.$1);
+      out += '<blockquote>' + block.replace(/\n/g, '<br>') + '</blockquote>';
+      continue;
+    }
+    if (/^[-*]\s+(.+)$/.test(line)) {
+      out += '<ul>';
+      while (i < lines.length && /^[-*]\s+(.+)$/.test(lines[i])) {
+        out += '<li>' + inline(RegExp.$1) + '</li>';
+        i++;
+      }
+      out += '</ul>';
+      continue;
+    }
+    if (/^\d+\.\s+(.+)$/.test(line)) {
+      out += '<ol>';
+      while (i < lines.length && /^\d+\.\s+(.+)$/.test(lines[i])) {
+        out += '<li>' + inline(RegExp.$1) + '</li>';
+        i++;
+      }
+      out += '</ol>';
+      continue;
+    }
+    if (line.trim() === '') {
+      i++;
+      continue;
+    }
+    out += '<p>' + inline(line) + '</p>';
+    i++;
+  }
+  return out;
+}
+
+// Copy URL on copy button click (stop propagation so card click doesn't fire)
+document.querySelectorAll('.copy-btn[data-url]').forEach(btn => {
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
     const url = btn.dataset.url;
-    try { await navigator.clipboard.writeText(url); } catch(e) {
-      const t=document.createElement('textarea');t.value=url;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);
+    try { await navigator.clipboard.writeText(url); } catch(err) {
+      const t = document.createElement('textarea'); t.value = url; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
     }
     const orig = btn.innerHTML;
     btn.classList.add('copied');
@@ -263,6 +444,82 @@ document.querySelectorAll('[data-url]').forEach(btn => {
     setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 1500);
   });
 });
+
+// Hero button copy (no stopPropagation)
+document.querySelector('.hero-btn[data-url]').addEventListener('click', async (e) => {
+  const url = e.currentTarget.dataset.url;
+  try { await navigator.clipboard.writeText(url); } catch(err) {
+    const t = document.createElement('textarea'); t.value = url; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
+  }
+  const btn = e.currentTarget;
+  const orig = btn.innerHTML;
+  btn.classList.add('copied');
+  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+  setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 1500);
+});
+
+// Modal: open on card click, fetch skill and render markdown
+const modal = document.getElementById('modal');
+const modalTitle = document.getElementById('modal-title');
+const modalBody = document.getElementById('modal-body');
+const modalClose = document.getElementById('modal-close');
+const modalCopyBtn = document.getElementById('modal-copy-btn');
+const modalCopyLabel = document.getElementById('modal-copy-label');
+
+const GITHUB_BASE = 'https://github.com/austintgriffith/ethskills/blob/master/';
+
+function openModal(title, path, skillUrl) {
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  modalTitle.textContent = title;
+  modalCopyBtn.dataset.url = skillUrl;
+  modalCopyLabel.textContent = skillUrl.replace(/^https?:\/\/[^/]+\//, '');
+  document.getElementById('modal-edit-btn').href = GITHUB_BASE + path;
+  modalBody.innerHTML = '<p class="modal-loading">Loading…</p>';
+  modalBody.classList.remove('modal-error');
+
+  fetch(path)
+    .then(r => { if (!r.ok) throw new Error(r.statusText); return r.text(); })
+    .then(text => { modalBody.innerHTML = renderMarkdown(text); })
+    .catch(err => {
+      modalBody.classList.add('modal-error');
+      modalBody.innerHTML = '<p>Could not load skill: ' + ('' + err.message).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '.</p>';
+    });
+}
+
+function closeModal() {
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+document.querySelectorAll('.skill').forEach(card => {
+  const copyBtn = card.querySelector('.copy-btn[data-url]');
+  const title = card.querySelector('.skill-name');
+  if (!copyBtn || !title) return;
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('.copy-btn')) return;
+    const skillUrl = copyBtn.dataset.url;
+    const path = new URL(skillUrl).pathname.slice(1);
+    openModal(title.textContent, path, skillUrl);
+  });
+});
+
+modalCopyBtn.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  const url = modalCopyBtn.dataset.url;
+  if (!url) return;
+  try { await navigator.clipboard.writeText(url); } catch(err) {
+    const t = document.createElement('textarea'); t.value = url; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
+  }
+  const orig = modalCopyBtn.innerHTML;
+  modalCopyBtn.classList.add('copied');
+  modalCopyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+  setTimeout(() => { modalCopyBtn.innerHTML = orig; modalCopyBtn.classList.remove('copied'); }, 1500);
+});
+
+modalClose.addEventListener('click', closeModal);
+modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 </script>
 </body>
 </html>
