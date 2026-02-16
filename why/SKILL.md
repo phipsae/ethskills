@@ -25,7 +25,7 @@ description: Why build on Ethereum specifically. Honest tradeoffs vs other chain
 
 ## Current Network Stats (Feb 2026)
 
-- **Block time:** 8 seconds (reduced from 12s by Fusaka)
+- **Block time:** 12 seconds
 - **Mainnet base fee:** 0.05-0.1 gwei
 - **L2 transaction cost:** $0.001-0.01
 - **Combined L2 TPS:** 50,000+ (post-Fusaka)
@@ -79,15 +79,11 @@ Fully autonomous economic loop — no humans required.
 
 Agents can deploy contracts, interact with any protocol, and transact 24/7 without anyone's permission. No API keys to revoke, no accounts to ban, no services to shut down. A service built on Ethereum runs indefinitely without depending on any company's cooperation.
 
-## Ethereum vs Solana (Honest)
+## Ethereum Mainnet vs Layer 2s
 
 **Choose Ethereum when:** DeFi integration, agent infrastructure (ERC-8004/x402), composability with existing protocols, maximum security for high-value operations, long-term durability.
 
-**Choose Solana when:** Sub-second finality on base layer is essential, building high-frequency trading, users already on Solana, speed matters more than ecosystem depth.
-
-**Key differences:** Ethereum has $50B+ TVL vs Solana ~$5B. Ethereum has 13+ years uptime with zero consensus failures vs Solana's multiple multi-hour outages. Ethereum has 1M+ validators vs Solana's 1,500. But Solana has ~400ms blocks vs 8s.
-
-**L2 caveat:** Ethereum L2s are now comparable to Solana on cost ($0.001/tx), but Solana is still faster on base layer finality.
+**Choose L2s when:** Sub-second finality on base layer is essential, building high-frequency trading, speed matters more than liquidity depth and security.
 
 ## Resources
 
