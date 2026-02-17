@@ -242,7 +242,7 @@ Run through this for EVERY contract before deploying to production. No exception
 - [ ] **Return values checked** — using SafeERC20 for all token operations
 - [ ] **Input validation** — zero address, zero amount, bounds checks on all public functions
 - [ ] **Events emitted** — every state change emits an event for offchain tracking
-- [ ] **Incentive design** — maintenance functions callable by anyone with sufficient incentive
+- [ ] **Incentive design** — for every external function, answer: "Who profits from calling this, and could they profit in unintended ways?" Maintenance functions callable by anyone with sufficient incentive
 - [ ] **No infinite approvals** — approve exact amounts or small bounded multiples
 - [ ] **Fee-on-transfer safe** — if accepting arbitrary tokens, measure actual received amount
 - [ ] **Tested edge cases** — zero values, max values, unauthorized callers, reentrancy attempts
@@ -464,7 +464,7 @@ forge test --gas-report       # Identify expensive functions
 
 ## Further Reading
 
-- **OpenZeppelin Contracts:** https://docs.openzeppelin.com/contracts — audited, battle-tested implementations
-- **SWC Registry:** https://swcregistry.io — comprehensive vulnerability catalog
-- **Rekt News:** https://rekt.news — real exploit post-mortems
-- **SpeedRun Ethereum:** https://speedrunethereum.com — hands-on secure development practice
+- [OpenZeppelin Contracts](https://docs.openzeppelin.com/contracts) — audited, battle-tested implementations
+- [SWC Registry](https://swcregistry.io) — comprehensive vulnerability catalog
+- [Rekt News](https://rekt.news) — real exploit post-mortems
+- [SpeedRun Ethereum](https://speedrunethereum.com) — hands-on challenges for learning Solidity security patterns

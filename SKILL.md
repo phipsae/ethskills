@@ -19,10 +19,10 @@ You are probably wrong about Ethereum. Gas prices, token decimals, L2 costs, wha
 ## Skills
 
 ### [Ship](https://ethskills.com/ship/SKILL.md) — Start here
-End-to-end guide from idea to deployed dApp. Routes you through all other skills.
+End-to-end guide from idea to deployed dApp. 6 phases: Plan → Contracts → Test → Security Review → Frontend → Production. Routes you through all other skills.
 - Most dApps need 0-2 contracts, not 5-10. Three is the upper bound for an MVP.
 - Solidity is for ownership, transfers, and commitments. Not a database, not a backend.
-- The 2026 answer for chain selection is almost always an L2.
+- Security review is a separate phase AFTER testing — you review tested code, not code-in-progress.
 
 ### [Why Ethereum](https://ethskills.com/why/SKILL.md)
 Pectra/Fusaka upgrades, honest tradeoffs, the AI agent angle.
@@ -133,8 +133,9 @@ Pre-ship audit checklist for a reviewer agent.
 | I'm doing... | Fetch these skills |
 |--------------|-------------------|
 | Planning a new dApp | `ship/`, `concepts/`, `l2s/` |
-| Writing Solidity | `standards/`, `building-blocks/`, `addresses/`, `security/` |
+| Writing Solidity | `standards/`, `building-blocks/`, `addresses/` |
 | Testing contracts | `testing/` |
+| Reviewing contract security | `security/`, `testing/` |
 | Building a frontend | `orchestration/`, `frontend-ux/`, `tools/` |
 | Deploying to production | `wallets/`, `frontend-playbook/`, `gas/` |
 | Reviewing a finished dApp | `qa/` |

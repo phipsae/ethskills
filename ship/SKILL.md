@@ -105,7 +105,7 @@ Find your archetype below. Each tells you exactly how many contracts you need, w
 - No initial liquidity plan (deploying a token nobody can buy)
 - Fee-on-transfer mechanics that break DEX integrations
 
-**Fetch sequence:** `standards/SKILL.md` → `security/SKILL.md` → `testing/SKILL.md` → `gas/SKILL.md`
+**Fetch sequence:** `standards/SKILL.md` → `testing/SKILL.md` → `security/SKILL.md` → `gas/SKILL.md`
 
 ### 2. NFT Collection (1 contract)
 
@@ -119,7 +119,7 @@ Find your archetype below. Each tells you exactly how many contracts you need, w
 - No max supply cap (unlimited minting destroys value)
 - Complex whitelist logic when a simple Merkle root works
 
-**Fetch sequence:** `standards/SKILL.md` → `security/SKILL.md` → `testing/SKILL.md` → `frontend-ux/SKILL.md`
+**Fetch sequence:** `standards/SKILL.md` → `testing/SKILL.md` → `security/SKILL.md` → `frontend-ux/SKILL.md`
 
 ### 3. Marketplace / Exchange (0-2 contracts)
 
@@ -135,7 +135,7 @@ Find your archetype below. Each tells you exactly how many contracts you need, w
 - Ignoring MEV (fetch `security/SKILL.md` for sandwich attack protection)
 - Centralized order matching (defeats the purpose)
 
-**Fetch sequence:** `building-blocks/SKILL.md` → `addresses/SKILL.md` → `security/SKILL.md` → `testing/SKILL.md`
+**Fetch sequence:** `building-blocks/SKILL.md` → `addresses/SKILL.md` → `testing/SKILL.md` → `security/SKILL.md`
 
 ### 4. Lending / Vault / Yield (0-1 contracts)
 
@@ -149,7 +149,7 @@ Find your archetype below. Each tells you exactly how many contracts you need, w
 - Not using ERC-4626 standard (breaks composability)
 - Hardcoding token decimals (USDC is 6, not 18)
 
-**Fetch sequence:** `building-blocks/SKILL.md` → `standards/SKILL.md` → `security/SKILL.md` → `testing/SKILL.md`
+**Fetch sequence:** `building-blocks/SKILL.md` → `standards/SKILL.md` → `testing/SKILL.md` → `security/SKILL.md`
 
 ### 5. DAO / Governance (1-3 contracts)
 
@@ -165,7 +165,7 @@ Find your archetype below. Each tells you exactly how many contracts you need, w
 - Low quorum that allows minority takeover
 - Token distribution so concentrated that one whale controls everything
 
-**Fetch sequence:** `standards/SKILL.md` → `building-blocks/SKILL.md` → `security/SKILL.md` → `testing/SKILL.md`
+**Fetch sequence:** `standards/SKILL.md` → `building-blocks/SKILL.md` → `testing/SKILL.md` → `security/SKILL.md`
 
 ### 6. AI Agent Service (0-1 contracts)
 
@@ -186,7 +186,7 @@ Find your archetype below. Each tells you exactly how many contracts you need, w
 
 ## Phase 1 — Build Contracts
 
-**Fetch:** `standards/SKILL.md`, `building-blocks/SKILL.md`, `addresses/SKILL.md`, `security/SKILL.md`
+**Fetch:** `standards/SKILL.md`, `building-blocks/SKILL.md`, `addresses/SKILL.md`
 
 Key guidance:
 - Use OpenZeppelin contracts as your base — don't reinvent ERC-20, ERC-721, or AccessControl
@@ -194,7 +194,6 @@ Key guidance:
 - Follow the Checks-Effects-Interactions pattern for every external call
 - Emit events for every state change (your frontend and indexer need them)
 - Use `SafeERC20` for all token operations
-- Run through the security checklist in `security/SKILL.md` before moving to Phase 2
 
 For SE2 projects, follow `orchestration/SKILL.md` Phase 1 for the exact build sequence.
 
@@ -210,12 +209,24 @@ Key guidance:
 - Unit test every custom function (not OpenZeppelin internals)
 - Fuzz test all math operations — fuzzing finds the bugs you didn't think of
 - Fork test any integration with external protocols (Uniswap, Aave, etc.)
-- Run `slither .` for static analysis before deploying
 - Target edge cases: zero amounts, max uint, empty arrays, self-transfers, unauthorized callers
 
 ---
 
-## Phase 3 — Build Frontend
+## Phase 3 — Security Review
+
+**Fetch:** `security/SKILL.md`
+
+You review tested code, not code-in-progress. Run this AFTER tests pass, not before.
+
+Key guidance:
+- Run the full pre-deploy checklist in `security/SKILL.md` — every item, PASS or FAIL. No skipping.
+- Run `slither .` for static analysis. Address all high/medium findings before proceeding.
+- **Incentive audit:** For every external function, answer: "Who profits from calling this, and could they profit in unintended ways?"
+
+---
+
+## Phase 4 — Build Frontend
 
 **Fetch:** `orchestration/SKILL.md`, `frontend-ux/SKILL.md`, `tools/SKILL.md`
 
@@ -228,7 +239,7 @@ Key guidance:
 
 ---
 
-## Phase 4 — Ship to Production
+## Phase 5 — Ship to Production
 
 **Fetch:** `wallets/SKILL.md`, `frontend-playbook/SKILL.md`, `gas/SKILL.md`
 
@@ -277,6 +288,7 @@ Fetch `frontend-playbook/SKILL.md` for the full pipeline:
 - [ ] Audit every state transition (who calls it? why?)
 - [ ] Write contracts using OpenZeppelin base contracts
 - [ ] Test with Foundry (unit + fuzz + fork tests)
+- [ ] Security review — run full checklist, slither, incentive audit
 - [ ] Deploy, verify, transfer ownership to multisig
 - [ ] Ship frontend (IPFS or Vercel), run production QA
 
@@ -289,8 +301,9 @@ Use this to know which skills to fetch at each phase:
 | Phase | What you're doing | Skills to fetch |
 |-------|-------------------|-----------------|
 | **Plan** | Architecture, chain selection | `ship/` (this), `concepts/`, `l2s/`, `gas/` |
-| **Contracts** | Writing Solidity | `standards/`, `building-blocks/`, `addresses/`, `security/` |
+| **Contracts** | Writing Solidity | `standards/`, `building-blocks/`, `addresses/` |
 | **Test** | Testing contracts | `testing/` |
+| **Security Review** | Auditing tested contracts | `security/` |
 | **Frontend** | Building UI | `orchestration/`, `frontend-ux/`, `tools/` |
 | **Production** | Deploy + monitor | `wallets/`, `frontend-playbook/`, `indexing/` |
 
