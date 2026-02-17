@@ -113,11 +113,80 @@ Phantom is NOT in the SE2 default wallet list. A lot of users have Phantom — i
 
 ## Important: Mobile Deep Linking
 
-On mobile, when a user taps a button that needs a signature, it must open their wallet app. Test this: open the app on a phone, connect a wallet, tap an action button that triggers a transaction — does the wallet app open?
+**RainbowKit v2 / WalletConnect v2 does NOT auto-deep-link to the wallet app.** It relies on push notifications instead, which are slow and unreliable. You must implement deep linking yourself.
+
+On mobile, when a user taps a button that needs a signature, it must open their wallet app. Test this: open the app on a phone, connect a wallet via WalletConnect, tap an action button — does the wallet app open with the transaction ready to sign?
 
 - ❌ **FAIL:** Nothing happens, user has to manually switch to their wallet app
+- ❌ **FAIL:** Deep link fires BEFORE the transaction — user arrives at wallet with nothing to sign
+- ❌ **FAIL:** `window.location.href = "rainbow://"` called before `writeContractAsync()` — navigates away and the TX never fires
 - ❌ **FAIL:** It opens the wrong wallet (e.g. opens MetaMask when user connected with Rainbow)
-- ✅ **PASS:** Tapping any transaction button deep links to the connected wallet app for signing
+- ❌ **FAIL:** Deep links inside a wallet's in-app browser (unnecessary — you're already in the wallet)
+- ✅ **PASS:** Every transaction button fires the TX first, then deep links to the correct wallet app after a delay
+
+### How to implement it
+
+**Pattern: `writeAndOpen` helper.** Fire the write call first (sends the TX request over WalletConnect), then deep link after a delay to switch the user to their wallet:
+
+```typescript
+const writeAndOpen = useCallback(
+  <T,>(writeFn: () => Promise<T>): Promise<T> => {
+    const promise = writeFn(); // Fire TX — does gas estimation + WC relay
+    setTimeout(openWallet, 2000); // Switch to wallet AFTER request is relayed
+    return promise;
+  },
+  [openWallet],
+);
+
+// Usage — wraps every write call:
+await writeAndOpen(() => gameWrite({ functionName: "click", args: [...] }));
+```
+
+**Why 2 seconds?** `writeContractAsync` must estimate gas, encode calldata, and relay the signing request through WalletConnect's servers. 300ms is too fast — the wallet won't have received the request yet.
+
+**Detecting the wallet:** `connector.id` from wagmi says `"walletConnect"`, NOT `"rainbow"` or `"metamask"`. You must check multiple sources:
+
+```typescript
+const openWallet = useCallback(() => {
+  if (typeof window === "undefined") return;
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (!isMobile || window.ethereum) return; // Skip if desktop or in-app browser
+
+  // Check connector, wagmi storage, AND WalletConnect session data
+  const allIds = [connector?.id, connector?.name,
+    localStorage.getItem("wagmi.recentConnectorId")]
+    .filter(Boolean).join(" ").toLowerCase();
+
+  let wcWallet = "";
+  try {
+    const wcKey = Object.keys(localStorage).find(k => k.startsWith("wc@2:client"));
+    if (wcKey) wcWallet = (localStorage.getItem(wcKey) || "").toLowerCase();
+  } catch {}
+  const search = `${allIds} ${wcWallet}`;
+
+  const schemes: [string[], string][] = [
+    [["rainbow"], "rainbow://"],
+    [["metamask"], "metamask://"],
+    [["coinbase", "cbwallet"], "cbwallet://"],
+    [["trust"], "trust://"],
+    [["phantom"], "phantom://"],
+  ];
+
+  for (const [keywords, scheme] of schemes) {
+    if (keywords.some(k => search.includes(k))) {
+      window.location.href = scheme;
+      return;
+    }
+  }
+}, [connector]);
+```
+
+**Key rules:**
+1. **Fire TX first, deep link second.** Never `window.location.href` before the write call
+2. **Skip deep link if `window.ethereum` exists** — means you're already in the wallet's in-app browser
+3. **Check WalletConnect session data** in localStorage — `connector.id` alone won't tell you which wallet
+4. **Use simple scheme URLs** like `rainbow://` — not `rainbow://dapp/...` which reloads the page
+5. **Wrap EVERY write call** — approve, action, claim, batch — not just the main one
 
 ---
 
@@ -142,4 +211,6 @@ Report each as PASS or FAIL:
 - [ ] RPC overrides set (not default SE2 key)
 - [ ] Favicon updated from SE2 default
 - [ ] Phantom wallet in RainbowKit wallet list
-- [ ] Mobile: tapping a transaction button opens the connected wallet app
+- [ ] Mobile: ALL transaction buttons deep link to wallet (fire TX first, then `setTimeout(openWallet, 2000)`)
+- [ ] Mobile: wallet detection checks WC session data, not just `connector.id`
+- [ ] Mobile: no deep link when `window.ethereum` exists (in-app browser)
