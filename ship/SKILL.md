@@ -23,6 +23,18 @@ description: End-to-end guide for AI agents — from a dApp idea to deployed pro
 
 Do this BEFORE writing any code. Every hour spent here saves ten hours of rewrites.
 
+### Clarify Before You Build
+
+Users give you a vague idea, not a spec. Before planning architecture, ask about anything that would change your design:
+
+- **Scope** — How many features for the MVP? What's out of scope?
+- **Users & roles** — Who interacts with this? Just end users, or also admins/operators/liquidators?
+- **Key business rules** — Fee structure? Thresholds? Limits? Token choice?
+- **Trust assumptions** — What should be owner-controlled vs permissionless? Upgradeable or immutable?
+- **Integrations** — Does it need to work with existing protocols (Uniswap, Chainlink, Aave)?
+
+Don't ask about implementation details (which ERC standard, which library, how to structure tests) — that's what the skills are for. Ask about **what the user wants**, not **how to build it**.
+
 ### The Onchain Litmus Test
 
 Put it onchain if it involves:
