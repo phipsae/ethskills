@@ -187,6 +187,36 @@ function addYield(uint256 amount) external onlyOwner {
 ```
 This is the canonical pattern for testing vaults when you need to increase `totalAssets` without minting new shares. The owner approves the vault, then calls `addYield`.
 
+**Testing the inflation attack mitigation:**
+Don't just log the attacker's outcome — assert it. The test must prove the attack is unprofitable:
+```solidity
+function test_InflationAttackIsUnprofitable() public {
+    uint256 attackCost = 1_000 ether;
+
+    // Attacker: deposit 1 wei, donate attackCost directly to vault
+    vm.startPrank(attacker);
+    token.approve(address(vault), 1);
+    vault.deposit(1, attacker);
+    token.transfer(address(vault), attackCost); // direct donation
+    vm.stopPrank();
+
+    // Victim deposits
+    vm.startPrank(victim);
+    token.approve(address(vault), attackCost);
+    vault.deposit(attackCost, victim);
+    vm.stopPrank();
+
+    // Attacker redeems everything
+    vm.startPrank(attacker);
+    uint256 attackerShares = vault.balanceOf(attacker);
+    uint256 attackerAssets = vault.redeem(attackerShares, attacker, attacker);
+    vm.stopPrank();
+
+    // KEY ASSERTION: attacker must lose money
+    assertLt(attackerAssets, attackCost, "Attacker must not profit from inflation attack");
+}
+```
+
 ### 7. Infinite Approvals
 
 **Never use `type(uint256).max` as approval amount.**
