@@ -172,6 +172,21 @@ The virtual offset makes the attack uneconomical — the attacker would need to 
 
 OpenZeppelin's ERC4626 implementation includes this mitigation by default since v5.
 
+**OpenZeppelin v5 ERC4626 notes:**
+- OZ v5 includes virtual offset mitigation by default (offset 0). Override `_decimalsOffset()` returning 3 for stronger protection.
+- `deposit(0)` is a valid no-op in OZ v5 — it mints 0 shares and does NOT revert. Don't write `test_RevertWhen_DepositZero` for a v5 vault; test `test_DepositZero_MintsNoShares` instead.
+- A decimal offset of N means up to `10^N` wei of rounding dust per user on full withdrawal. For offset=3, expect up to 1000 wei dust — account for this in fuzz test tolerances.
+
+**Simulated yield pattern for testing:**
+```solidity
+/// @notice Owner injects yield into the vault (simulates real yield for testing)
+function addYield(uint256 amount) external onlyOwner {
+    IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
+    emit YieldAdded(amount);
+}
+```
+This is the canonical pattern for testing vaults when you need to increase `totalAssets` without minting new shares. The owner approves the vault, then calls `addYield`.
+
 ### 7. Infinite Approvals
 
 **Never use `type(uint256).max` as approval amount.**

@@ -30,6 +30,24 @@ yarn chain          # Terminal 1: local node
 yarn deploy         # Terminal 2: deploy contracts
 ```
 
+**No internet access?** If `npx create-eth@latest` fails (sandboxed environment, offline), create the project structure manually:
+```
+my-dapp/
+├── contracts/          # Foundry project (forge init)
+│   ├── src/
+│   ├── test/
+│   ├── script/
+│   └── foundry.toml
+└── frontend/           # Next.js project (npx next-app)
+    ├── app/
+    ├── lib/
+    │   ├── wagmi.ts
+    │   └── deployedContracts.ts
+    ├── components/
+    └── package.json
+```
+Use `wagmi` + `viem` + `@rainbow-me/rainbowkit` directly instead of Scaffold-ETH hooks. Configure the `foundry` chain (ID 31337) in `wagmi.ts`. Write `deployedContracts.ts` by hand with `{ [31337]: { chainId: 31337, name: "foundry", contracts: { ... } } }` after deployment.
+
 **Critical steps:**
 1. Write contracts in `packages/foundry/contracts/` (or `packages/hardhat/contracts/`)
 2. Write deploy script

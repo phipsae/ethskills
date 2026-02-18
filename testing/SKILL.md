@@ -146,9 +146,12 @@ function testFuzz_DepositWithdrawRoundtrip(uint256 amount) public {
     vault.withdraw(vault.balanceOf(alice), alice, alice);
     vm.stopPrank();
 
-    // Property: user gets back what they deposited (minus any fees)
+    // Property: user gets back what they deposited (minus any fees/rounding)
     assertGe(token.balanceOf(alice), balanceBefore - 1); // Allow 1 wei rounding
 }
+
+// ERC-4626 with _decimalsOffset() = N: rounding dust can be up to 10^N wei per user.
+// For offset=3: use assertApproxEqAbs(out, in, 1000) instead of allowing only 1 wei.
 ```
 
 ### Bounding Inputs
@@ -304,6 +307,19 @@ contract VaultInvariantTest is Test {
             assertGt(vault.convertToAssets(1e18), 0, "Share price must never be zero");
         }
     }
+
+    // Solvency: vault can always honor all redemptions
+    function invariant_VaultIsSolvent() public view {
+        uint256 totalShares = vault.totalSupply();
+        if (totalShares > 0) {
+            uint256 redeemable = vault.convertToAssets(totalShares);
+            assertGe(
+                vault.totalAssets(),
+                redeemable,
+                "Vault must always be able to honor all redemptions"
+            );
+        }
+    }
 }
 
 // Handler: guided random actions
@@ -362,6 +378,8 @@ forge test --fuzz-runs 1000
 - **Happy path only.** The happy path probably works. Test the unhappy paths: what happens with zero? Max uint? Unauthorized callers? Reentrancy?
 
 **Focus your testing effort on:** Custom business logic, mathematical operations, integration points with external protocols, access control boundaries, and economic edge cases.
+
+**For security property tests, always assert economic outcomes.** Don't just test that a function doesn't revert — test that the attacker loses money. For example, an inflation attack test must assert `attackerFinalBalance < attackerCost`, not just that the victim received some shares.
 
 ---
 
