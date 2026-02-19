@@ -309,6 +309,15 @@ yarn start    # starts Next.js dev server
 
 `yarn deploy` runs your deploy scripts in `packages/foundry/script/` and auto-generates `packages/nextjs/contracts/deployedContracts.ts` with the correct addresses and ABIs. No `dev.sh`, no broadcast parsing, no address patching.
 
+**Anvil mainnet fork + EIP-1559:** `yarn deploy` may fail with `Failed to get EIP-1559 fees` when Anvil is forking certain RPCs. Fix by adding `--legacy` to the forge script command in `packages/foundry/Makefile`:
+
+```makefile
+# In the deploy target, add --legacy to the forge script command:
+forge script $(DEPLOY_SCRIPT) --rpc-url localhost --password localhost --broadcast --legacy --ffi
+```
+
+**Anvil is ephemeral.** Every time Anvil restarts, all deployed contracts are gone. You must `yarn deploy` again after each Anvil restart — this regenerates `deployedContracts.ts` with the new addresses automatically.
+
 **`vm.deal` doesn't work in broadcast.** In forge scripts, `vm.deal(addr, amount)` only funds the address during simulation — it has no effect when broadcasting real transactions. To fund an address for actual broadcast, send ETH from a funded account inside `vm.startBroadcast(deployerPK)`:
 ```solidity
 vm.startBroadcast(DEPLOYER_PK);
