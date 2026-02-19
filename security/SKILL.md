@@ -158,19 +158,17 @@ The first depositor in an ERC-4626 vault can manipulate the share price to steal
 4. Victim deposits 1999 tokens → gets `1999 * 1 / 2000 = 0 shares` (rounds down)
 5. Attacker redeems 1 share → gets all 3000 tokens
 
-**The fix — virtual offset:**
+**The fix — use OpenZeppelin v5's built-in virtual offset:**
 ```solidity
-function convertToShares(uint256 assets) public view returns (uint256) {
-    return assets.mulDiv(
-        totalSupply() + 1e3,    // Virtual shares
-        totalAssets() + 1        // Virtual assets
-    );
+// Override _decimalsOffset() to increase the virtual offset (default is 0).
+// An offset of 3 means 1000 virtual shares per virtual asset — makes the attack
+// cost the attacker ~1000x what they'd steal.
+function _decimalsOffset() internal view virtual override returns (uint8) {
+    return 3;
 }
 ```
 
-The virtual offset makes the attack uneconomical — the attacker would need to donate enormous amounts to manipulate the ratio.
-
-OpenZeppelin's ERC4626 implementation includes this mitigation by default since v5.
+The virtual offset makes the attack uneconomical — the attacker would need to donate enormous amounts to manipulate the ratio. OpenZeppelin's ERC4626 includes this mechanism since v5; you just need to override `_decimalsOffset()` to strengthen it beyond the default.
 
 **OpenZeppelin v5 ERC4626 notes:**
 - OZ v5 includes virtual offset mitigation by default (offset 0). Override `_decimalsOffset()` returning 3 for stronger protection.

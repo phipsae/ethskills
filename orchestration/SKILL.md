@@ -46,7 +46,34 @@ my-dapp/
     ├── components/
     └── package.json
 ```
-Use `wagmi` + `viem` + `@rainbow-me/rainbowkit` directly instead of Scaffold-ETH hooks. Configure the `foundry` chain (ID 31337) in `wagmi.ts`. Write `deployedContracts.ts` by hand with `{ [31337]: { chainId: 31337, name: "foundry", contracts: { ... } } }` after deployment.
+Use `wagmi` + `viem` + `@rainbow-me/rainbowkit` directly instead of Scaffold-ETH hooks. Use `injected()` connector for local Anvil dev — avoid `metaMask()` which pulls in `@metamask/sdk` and triggers harmless but noisy `@react-native-async-storage` warnings in Next.js builds.
+
+**tsconfig.json must target ES2020 or later** — the default `es2017` rejects BigInt literals (`0n`) which wagmi/viem use everywhere:
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["dom", "dom.iterable", "esnext"]
+  }
+}
+```
+
+**`deployedContracts.ts` template** — export addresses, ABIs, and chain ID after deploying:
+```typescript
+export const DEPLOYED_CHAIN_ID = 31337;
+
+export const contracts = {
+  MyToken: {
+    address: "0x..." as const,
+    abi: [...] as const,
+  },
+  MyVault: {
+    address: "0x..." as const,
+    abi: [...] as const,
+  },
+} as const;
+```
+Fill in addresses from `forge script` output and ABIs from `out/<Contract>.sol/<Contract>.json`.
 
 **Critical steps:**
 1. Write contracts in `packages/foundry/contracts/` (or `packages/hardhat/contracts/`)
