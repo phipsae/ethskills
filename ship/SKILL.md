@@ -275,34 +275,39 @@ Key guidance:
 
 **Fetch:** `orchestration/SKILL.md`, `frontend-ux/SKILL.md`, `tools/SKILL.md`
 
-Key guidance:
-- Use `wagmi` + `viem` + `@rainbow-me/rainbowkit` — see `orchestration/SKILL.md` for setup
-- Implement the three-button flow: Switch Network → Approve → Execute
+**Use Scaffold-ETH 2 (SE2) with Foundry.** Do NOT build a raw Next.js + wagmi app from scratch.
+
+1. **Bootstrap:** Follow `orchestration/SKILL.md` for project setup — it uses `create-eth` with the Foundry template
+2. **Copy contracts** into `packages/foundry/contracts/`, write deploy scripts in `packages/foundry/script/`
+3. **Deploy locally:** `yarn deploy` — this auto-generates `deployedContracts.ts` (no manual address patching)
+4. **Use scaffold hooks** — `useScaffoldReadContract`, `useScaffoldWriteContract`, `useScaffoldEventHistory` — NOT raw wagmi hooks. These auto-wire to deployed contract addresses and ABIs.
+5. **Build pages** in `packages/nextjs/app/` using scaffold hooks and SE2 components
+
+**UX requirements (still apply):**
 - Show loading states on every async operation (blockchains take 5-12 seconds)
 - Display token amounts in human-readable form with `formatEther`/`formatUnits`
 - Never use infinite approvals
+- Implement approve flows as two-step (approve then action)
+
+**Verify:** `yarn next:build` must pass before moving to Phase 5.
 
 ---
 
-## Phase 5 — Ship to Production
+## Phase 5 — Deploy & Run
 
 **Fetch:** `wallets/SKILL.md`, `frontend-playbook/SKILL.md`, `gas/SKILL.md`
 
-### Contract Deployment
-1. Set gas settings appropriate for the target chain (fetch `gas/SKILL.md`)
-2. Deploy and verify contracts on block explorer
-3. Transfer ownership to a multisig (Gnosis Safe) — never leave a single EOA as owner in production
-4. Post-deploy checks: call every read function, verify state, test one small transaction
+### Local Deploy (Anvil)
 
-**Deploying to Anvil (local fork):**
+SE2 handles everything — no manual address patching needed:
+
 ```bash
-PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-  forge script script/Deploy.s.sol \
-  --rpc-url http://127.0.0.1:8545 \
-  --broadcast \
-  --legacy
+yarn chain    # starts Anvil (mainnet fork)
+yarn deploy   # deploys contracts, auto-generates deployedContracts.ts
+yarn start    # starts Next.js dev server
 ```
-`--legacy` is needed for some Anvil configurations (pre-EIP-1559). Do NOT pass `--verify` for local deploys — there's no block explorer to verify against. For live network deploys, add `--verify --etherscan-api-key $KEY`.
+
+`yarn deploy` runs your deploy scripts in `packages/foundry/script/` and auto-generates `packages/nextjs/contracts/deployedContracts.ts` with the correct addresses and ABIs. No `dev.sh`, no broadcast parsing, no address patching.
 
 **`vm.deal` doesn't work in broadcast.** In forge scripts, `vm.deal(addr, amount)` only funds the address during simulation — it has no effect when broadcasting real transactions. To fund an address for actual broadcast, send ETH from a funded account inside `vm.startBroadcast(deployerPK)`:
 ```solidity
@@ -311,11 +316,19 @@ payable(alice).transfer(1 ether); // Real ETH send — works in broadcast
 vm.stopBroadcast();
 ```
 
-### Frontend Deployment
-Fetch `frontend-playbook/SKILL.md` for the full pipeline:
+### Post-Deploy Checks
+
+1. Call every read function — verify state is correct
+2. Test one small transaction end-to-end through the UI
+3. For production: transfer ownership to a multisig (Gnosis Safe)
+
+### Production Deploy
+
+For live network deploys, fetch `frontend-playbook/SKILL.md` for the full pipeline:
 - **IPFS** — decentralized, censorship-resistant, permanent
 - **Vercel** — fast, easy, but centralized
-- **ENS subdomain** — human-readable URL pointing to IPFS
+- Set gas settings appropriate for the target chain (fetch `gas/SKILL.md`)
+- Add `--verify --etherscan-api-key $KEY` to verify contracts on block explorer
 
 ### Post-Launch
 - Set up event monitoring with The Graph or Dune (fetch `indexing/SKILL.md`)
