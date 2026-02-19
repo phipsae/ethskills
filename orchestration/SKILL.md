@@ -30,56 +30,6 @@ yarn chain          # Terminal 1: local node
 yarn deploy         # Terminal 2: deploy contracts
 ```
 
-**No internet access?** If `npx create-eth@latest` fails (sandboxed environment, offline), create the project structure manually:
-```
-my-dapp/
-├── contracts/          # Foundry project (forge init)
-│   ├── src/
-│   ├── test/
-│   ├── script/
-│   └── foundry.toml
-└── frontend/           # Next.js project (npx next-app)
-    ├── app/
-    ├── lib/
-    │   ├── wagmi.ts
-    │   └── deployedContracts.ts
-    ├── components/
-    └── package.json
-```
-Use `wagmi` + `viem` + `@rainbow-me/rainbowkit` directly instead of Scaffold-ETH hooks. Use `injected()` connector for local Anvil dev — avoid `metaMask()` which pulls in `@metamask/sdk` and triggers harmless but noisy `@react-native-async-storage` warnings in Next.js builds.
-
-**tsconfig.json must target ES2020 or later** — the default `es2017` rejects BigInt literals (`0n`) which wagmi/viem use everywhere:
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["dom", "dom.iterable", "esnext"]
-  }
-}
-```
-
-**`deployedContracts.ts` template** — export addresses, ABIs, and chain ID after deploying:
-```typescript
-export const DEPLOYED_CHAIN_ID = 31337;
-
-export const contracts = {
-  MyToken: {
-    address: "0x..." as const,
-    abi: [...] as const,
-  },
-  MyVault: {
-    address: "0x..." as const,
-    abi: [...] as const,
-  },
-} as const;
-```
-Copy the **full ABI** from `out/<Contract>.sol/<Contract>.json` — include all functions, events, and errors. Don't hand-pick entries or you'll miss events needed for subscriptions and indexing later. Fill in addresses from `forge script` output.
-
-**Create `frontend/.env.local`** — even if empty for injected-only setups, this prevents silent breakage when connectors or API keys are added later:
-```
-# NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
-```
-
 **Critical steps:**
 1. Write contracts in `packages/foundry/contracts/` (or `packages/hardhat/contracts/`)
 2. Write deploy script
