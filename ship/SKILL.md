@@ -63,7 +63,8 @@ Keep it offchain if it involves:
 |---------------------|-----------|---------|
 | Token launch | 1 | ERC-20 with custom logic |
 | NFT collection | 1 | ERC-721 with mint/metadata |
-| Simple marketplace | 0-1 | Use existing DEX; maybe a listing contract |
+| NFT marketplace | 2 | ERC-721 + marketplace (approve-based listing) |
+| Token marketplace | 0-1 | Use existing DEX; maybe a listing contract |
 | Vault / yield | 1 | ERC-4626 vault |
 | Lending protocol | 1-2 | Pool + oracle integration |
 | DAO / governance | 1-3 | Governor + token + timelock |
@@ -133,7 +134,23 @@ Find your archetype below. Each tells you exactly how many contracts you need, w
 
 **Fetch sequence:** `standards/SKILL.md` → `testing/SKILL.md` → `security/SKILL.md` → `frontend-ux/SKILL.md`
 
-### 3. Marketplace / Exchange (0-2 contracts)
+### 3. NFT Marketplace (2 contracts)
+
+**Architecture:** One ERC-721 contract + one marketplace contract. Use the approve-based pattern (seller keeps NFT, marketplace calls `transferFrom` on purchase). Fetch `building-blocks/SKILL.md` for approve-based vs escrow-based tradeoffs.
+
+**Contracts:**
+- `MyNFT.sol` — ERC-721 with mint, metadata URI
+- `NFTMarketplace.sol` — listing, buying, canceling, fee collection
+
+**Common mistakes:**
+- Using escrow pattern for an MVP (adds gas cost and complexity for no user benefit)
+- Not handling stale listings (seller transfers NFT after listing — `buyNFT` should revert safely, not corrupt state)
+- Sending fees inline on every purchase (accumulate fees, let owner withdraw separately)
+- Forgetting the two-step frontend flow: Approve → List (users must approve the marketplace before listing)
+
+**Fetch sequence:** `building-blocks/SKILL.md` → `standards/SKILL.md` → `testing/SKILL.md` → `security/SKILL.md` → `frontend-ux/SKILL.md`
+
+### 4. Token Marketplace / Exchange (0-2 contracts)
 
 **Architecture:** If trading existing tokens, you likely need 0 contracts — integrate with Uniswap/Aerodrome. If building custom order matching, 1-2 contracts.
 
@@ -149,7 +166,7 @@ Find your archetype below. Each tells you exactly how many contracts you need, w
 
 **Fetch sequence:** `building-blocks/SKILL.md` → `addresses/SKILL.md` → `testing/SKILL.md` → `security/SKILL.md`
 
-### 4. Lending / Vault / Yield (0-1 contracts)
+### 5. Lending / Vault / Yield (0-1 contracts)
 
 **Architecture:** If using existing protocol (Aave, Compound), 0 contracts — just integrate. If building a vault, 1 ERC-4626 contract.
 
@@ -163,7 +180,7 @@ Find your archetype below. Each tells you exactly how many contracts you need, w
 
 **Fetch sequence:** `building-blocks/SKILL.md` → `standards/SKILL.md` → `testing/SKILL.md` → `security/SKILL.md`
 
-### 5. DAO / Governance (1-3 contracts)
+### 6. DAO / Governance (1-3 contracts)
 
 **Architecture:** Governor contract + governance token + timelock. Use OpenZeppelin's Governor — don't build from scratch.
 
@@ -179,7 +196,7 @@ Find your archetype below. Each tells you exactly how many contracts you need, w
 
 **Fetch sequence:** `standards/SKILL.md` → `building-blocks/SKILL.md` → `testing/SKILL.md` → `security/SKILL.md`
 
-### 6. AI Agent Service (0-1 contracts)
+### 7. AI Agent Service (0-1 contracts)
 
 **Architecture:** Agent logic is offchain. Onchain component is optional — ERC-8004 identity registration, or a payment contract for x402.
 
@@ -207,7 +224,7 @@ Key guidance:
 - Emit events for every state change (your frontend and indexer need them)
 - Use `SafeERC20` for all token operations
 
-For SE2 projects, follow `orchestration/SKILL.md` Phase 1 for the exact build sequence.
+Follow `orchestration/SKILL.md` for project setup and the frontend build sequence.
 
 ---
 
@@ -243,7 +260,7 @@ Key guidance:
 **Fetch:** `orchestration/SKILL.md`, `frontend-ux/SKILL.md`, `tools/SKILL.md`
 
 Key guidance:
-- Use Scaffold-ETH 2 hooks, not raw wagmi — `useScaffoldReadContract`, `useScaffoldWriteContract`
+- Use `wagmi` + `viem` + `@rainbow-me/rainbowkit` — see `orchestration/SKILL.md` for setup
 - Implement the three-button flow: Switch Network → Approve → Execute
 - Show loading states on every async operation (blockchains take 5-12 seconds)
 - Display token amounts in human-readable form with `formatEther`/`formatUnits`
@@ -270,6 +287,13 @@ PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
   --legacy
 ```
 `--legacy` is needed for some Anvil configurations (pre-EIP-1559). Do NOT pass `--verify` for local deploys — there's no block explorer to verify against. For live network deploys, add `--verify --etherscan-api-key $KEY`.
+
+**`vm.deal` doesn't work in broadcast.** In forge scripts, `vm.deal(addr, amount)` only funds the address during simulation — it has no effect when broadcasting real transactions. To fund an address for actual broadcast, send ETH from a funded account inside `vm.startBroadcast(deployerPK)`:
+```solidity
+vm.startBroadcast(DEPLOYER_PK);
+payable(alice).transfer(1 ether); // Real ETH send — works in broadcast
+vm.stopBroadcast();
+```
 
 ### Frontend Deployment
 Fetch `frontend-playbook/SKILL.md` for the full pipeline:

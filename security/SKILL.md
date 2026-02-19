@@ -245,7 +245,17 @@ uint256 payout = userBet + bonus;
 
 **Pure-ETH contracts don't need `SafeERC20`.** Agents trained on ERC-20 patterns may import SafeERC20 even when the contract only handles ETH. If all value transfer is via `msg.value` and `call{value:}`, skip the SafeERC20 import entirely.
 
-### 8. Infinite Approvals
+### 8. EIP-7702 and Safe Transfers
+
+EIP-7702 went live on Ethereum mainnet in May 2025. Any EOA with a 7702 delegation has bytecode (`0xef01...`), which means OpenZeppelin's `_safeMint` and `safeTransferFrom` treat it as a contract and call `onERC721Received`. If the delegation target doesn't implement `IERC721Receiver`, the transfer reverts with `ERC721InvalidReceiver`.
+
+**Impact:** This affects any contract that uses `_safeMint` or `safeTransferFrom` — NFT collections, marketplaces, airdrops, and any system that mints or transfers NFTs to user addresses. On a mainnet fork, many common addresses (Anvil defaults, `makeAddr()` derivations) already have delegation code.
+
+**In production code:** No fix needed — users with 7702 delegations are responsible for ensuring their delegate handles ERC-721 callbacks. But be aware: your contract may "silently" reject transfers to 7702-enabled addresses if their delegate doesn't implement `onERC721Received`.
+
+**In tests on mainnet fork:** Use explicitly constructed private keys to get fresh addresses without delegation code. See `testing/SKILL.md` Fork Testing section for the workaround.
+
+### 9. Infinite Approvals
 
 **Never use `type(uint256).max` as approval amount.**
 
@@ -262,7 +272,7 @@ token.approve(someContract, amountPerTx * 5); // 5 transactions worth
 
 If a contract with infinite approval gets exploited (proxy upgrade bug, governance attack, undiscovered vulnerability), the attacker can drain every approved token from every user who granted unlimited access.
 
-### 9. Access Control
+### 10. Access Control
 
 Every state-changing function needs explicit access control. "Who should be able to call this?" is the first question.
 
@@ -282,7 +292,7 @@ function emergencyWithdraw() external onlyOwner {
 
 For complex permissions, use OpenZeppelin's `AccessControl` with role-based separation (ADMIN_ROLE, OPERATOR_ROLE, etc.).
 
-### 10. Input Validation
+### 11. Input Validation
 
 Never trust inputs. Validate everything.
 

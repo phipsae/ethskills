@@ -247,6 +247,25 @@ contract SwapTest is Test {
 - **Always:** Any contract that reads oracle prices
 - **Never:** Pure logic contracts with no external calls — use unit tests
 
+### EIP-7702 Warning (Mainnet Fork)
+
+On a mainnet fork, Anvil default accounts and `makeAddr()`-generated addresses may have **EIP-7702 delegation code** (`0xef01...`). OpenZeppelin's `_safeMint` and `safeTransferFrom` detect bytecode on these addresses, call `onERC721Received`, and revert with `ERC721InvalidReceiver` because the delegation target doesn't implement the interface.
+
+**This breaks any forge script or fork-mode test that mints NFTs to derived addresses.**
+
+```solidity
+// ❌ BREAKS on mainnet fork — alice may have EIP-7702 delegation code
+address alice = makeAddr("alice");
+nft.mint(alice, tokenId); // _safeMint → onERC721Received → revert
+
+// ✅ SAFE — fresh private key → address has no onchain code
+uint256 constant ALICE_PK = 0xA11CE;
+address alice = vm.addr(ALICE_PK);
+nft.mint(alice, tokenId); // Works — no bytecode at this address
+```
+
+For forge scripts that broadcast, use `vm.addr(pk)` with explicitly chosen private keys. For tests that don't need fork state, run without `--fork-url` to avoid the issue entirely.
+
 ### Running Fork Tests
 
 ```bash
@@ -398,7 +417,8 @@ Tests are code too. Sloppy tests leak into production habits and create noise th
   IERC20(address(token)).safeTransfer(alice, 10_000e18);  // ✅
   // NOT: token.transfer(alice, 10_000e18);               // ❌ triggers warning
   ```
-- **Clean up before committing.** Run `forge build` one final time and resolve all warnings and notes. A clean build output means nothing is hiding.
+- **Ignore acronym casing notes.** Foundry's linter flags acronyms like NFT, DAO, ERC, and ABI as non-`mixedCase` (e.g., suggests `listNft` instead of `listNFT`). These are style notes, not errors — do NOT rename public contract functions based on them. Renaming breaks the ABI and any frontend code that calls the function by name.
+- **Clean up before committing.** Run `forge build` one final time and resolve all warnings and notes. A clean build output means nothing is hiding. Acronym casing notes are the one exception — leave those alone.
 
 ---
 
