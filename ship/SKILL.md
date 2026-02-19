@@ -69,7 +69,7 @@ Keep it offchain if it involves:
 | Lending protocol | 1-2 | Pool + oracle integration |
 | DAO / governance | 1-3 | Governor + token + timelock |
 | AI agent service | 0-1 | Maybe an ERC-8004 registration |
-| Prediction market | 1 | Market with trusted resolver address (EOA/multisig for MVP; separate oracle contract only for decentralized resolution) |
+| Prediction market | 1-2 | Pool-based MVP (1 contract); add ERC-1155 position tokens for trading (2). Fetch `prediction-market/SKILL.md` |
 
 **If you need more than 3 contracts for an MVP, you're over-building.** Ship the simplest version that works, then iterate.
 
@@ -210,6 +210,22 @@ Find your archetype below. Each tells you exactly how many contracts you need, w
 - Ignoring key management (fetch `wallets/SKILL.md`)
 
 **Fetch sequence:** `standards/SKILL.md` → `wallets/SKILL.md` → `tools/SKILL.md` → `orchestration/SKILL.md`
+
+### 8. Prediction Market (1-2 contracts)
+
+**Architecture:** One market contract for pool-based MVP. Add ERC-1155 position tokens for tradeable positions (Tier 2). Fetch `prediction-market/SKILL.md` for the full architecture tiers, resolver mechanisms, and payout math.
+
+**Contracts:**
+- `PredictionMarket.sol` — market creation, betting, resolution, claims
+- `PositionToken.sol` (optional, Tier 2) — ERC-1155 YES/NO position tokens
+
+**Common mistakes:**
+- Pool-based only (no secondary trading) when users expect to trade positions
+- Single EOA resolver with no fallback (funds locked if resolver disappears)
+- Inline fee sending on every claim (accumulate fees, let creator sweep)
+- Ignoring one-sided market edge case (division by zero when nobody bet on winning/losing side)
+
+**Fetch sequence:** `prediction-market/SKILL.md` → `testing/SKILL.md` → `security/SKILL.md` → `orchestration/SKILL.md`
 
 ---
 
