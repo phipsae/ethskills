@@ -289,7 +289,21 @@ Key guidance:
 - Never use infinite approvals
 - Implement approve flows as two-step (approve then action)
 
-**Verify:** `yarn next:build` must pass before moving to Phase 5. Prettier formatting warnings in the output are non-blocking — they come from SE2's strict config and don't affect the build.
+**Verify:** `yarn next:build` must pass before proceeding to E2E tests.
+
+### Write E2E Tests
+
+After the frontend builds, write Playwright end-to-end tests to verify the UI works against the live contracts.
+
+1. **Install:** `cd packages/nextjs && yarn add -D @playwright/test && npx playwright install chromium --with-deps`
+2. **Config:** Create `packages/nextjs/playwright.config.ts`
+3. **Tests:** Create `packages/nextjs/e2e/app.spec.ts`
+4. **Patterns:** Fetch `testing/SKILL.md` → "Frontend E2E Testing with Playwright" for SE2 auto-connect, selector strategy, and timeout guidelines
+5. **Run:** `cd packages/nextjs && npx playwright test`
+
+Minimum tests: page load, wallet connects (burner auto-connect), one read value displays, one write tx completes and UI updates. Prettier formatting warnings in the Playwright output are non-blocking.
+
+**Gate:** All Playwright tests pass before moving to Phase 5.
 
 ---
 

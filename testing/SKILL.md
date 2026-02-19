@@ -258,13 +258,18 @@ On a mainnet fork, Anvil default accounts and `makeAddr()`-generated addresses m
 address alice = makeAddr("alice");
 nft.mint(alice, tokenId); // _safeMint → onERC721Received → revert
 
-// ✅ SAFE — fresh private key → address has no onchain code
+// ❌ ALSO BREAKS — small "cute" PKs derive known addresses that are often delegated
 uint256 constant ALICE_PK = 0xA11CE;
-address alice = vm.addr(ALICE_PK);
-nft.mint(alice, tokenId); // Works — no bytecode at this address
+address alice = vm.addr(ALICE_PK); // 0x3e6E...  — may have delegation code
+
+// ✅ SAFE — high-entropy PK derives an address nobody has touched
+uint256 constant ALICE_PK = uint256(keccak256("alice"));
+address alice = vm.addr(ALICE_PK); // Random-looking address, no onchain code
 ```
 
-For forge scripts that broadcast, use `vm.addr(pk)` with explicitly chosen private keys. For tests that don't need fork state, run without `--fork-url` to avoid the issue entirely.
+**The private key needs sufficient entropy.** Small integers (`0xA11CE`, `0xB0B`, `0xC0C`) derive specific, well-known addresses that security researchers and automated wallets have delegated post-EIP-7702. Use `uint256(keccak256("label"))` to get a high-entropy PK that maps to an untouched address.
+
+For forge scripts that broadcast, use `vm.addr(pk)` with high-entropy private keys. For tests that don't need fork state, run without `--fork-url` to avoid the issue entirely.
 
 ### Running Fork Tests
 
@@ -434,4 +439,143 @@ Tests are code too. Sloppy tests leak into production habits and create noise th
 - [ ] Events verified with `expectEmit`
 - [ ] Gas snapshots taken with `forge snapshot` to catch regressions
 - [ ] Static analysis with `slither .` — no high/medium findings unaddressed
+- [ ] Playwright E2E tests pass (page load, wallet connect, read display, write tx)
 - [ ] All tests pass: `forge test -vvv`
+
+---
+
+## Frontend E2E Testing with Playwright
+
+Foundry tests verify contracts. Playwright tests verify the frontend actually works — buttons call the right functions, amounts parse correctly, pages don't crash on load.
+
+### SE2 Burner Wallet Auto-Connect
+
+Scaffold-ETH 2 auto-connects a burner wallet when `targetNetworks` includes `chains.foundry`. No RainbowKit modal clicking needed. Tests just wait for the ETH balance to appear in the header:
+
+```typescript
+// Wait for wallet connection — balance appears in header
+await expect(page.getByText(/ETH/)).toBeVisible({ timeout: 15_000 });
+```
+
+### What to Test
+
+- **Page loads without errors** — no hydration errors, no missing providers
+- **Wallet connects** — burner wallet auto-connects, balance visible in header
+- **Read data displays** — contract state renders (balances, lists, statuses)
+- **Write transaction completes** — submit a form, confirm tx succeeds, verify UI updates
+
+### Playwright Config
+
+```typescript
+// packages/nextjs/playwright.config.ts
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  testDir: "./e2e",
+  timeout: 60_000,
+  use: {
+    baseURL: "http://localhost:3000",
+    headless: true,
+  },
+  webServer: {
+    command: "yarn start",
+    url: "http://localhost:3000",
+    reuseExistingServer: true,
+    timeout: 30_000,
+  },
+});
+```
+
+### Test Template
+
+```typescript
+// packages/nextjs/e2e/app.spec.ts
+import { test, expect } from "@playwright/test";
+
+test.describe("dApp E2E", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    // Wait for burner wallet auto-connect (SE2 + chains.foundry)
+    await expect(page.getByText(/ETH/)).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("page loads without errors", async ({ page }) => {
+    // No error overlay
+    await expect(page.locator("#__next")).toBeVisible();
+    await expect(page.getByRole("heading")).toBeVisible();
+  });
+
+  test("read data displays", async ({ page }) => {
+    // Replace with your contract's read data
+    // Example: await expect(page.getByText("Total Supply")).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("write transaction completes", async ({ page }) => {
+    // Replace with your contract's write interaction
+    // Example:
+    // await page.getByPlaceholder("Enter amount").fill("1.0");
+    // await page.getByRole("button", { name: /stake/i }).click();
+    // Verify the UI updates after tx — use watch:true on read hooks so
+    // polling picks up new state, and assert the changed value appears:
+    // await expect(page.getByText(/success|confirmed/i)).toBeVisible({ timeout: 30_000 });
+  });
+});
+```
+
+### Selector Strategy
+
+SE2 doesn't use `data-testid` attributes. Use semantic selectors:
+
+```typescript
+// ✅ Semantic — resilient to markup changes
+page.getByRole("button", { name: /stake/i })
+page.getByText("Total Staked")
+page.getByPlaceholder("Enter amount")
+page.getByRole("heading", { name: /dashboard/i })
+
+// ❌ Fragile — breaks on CSS/class changes
+page.locator(".btn-primary")
+page.locator("[data-testid='stake-btn']")  // SE2 doesn't add these
+```
+
+### Timeout Guidelines
+
+| Action | Timeout | Why |
+|--------|---------|-----|
+| Wallet connect (burner) | 15s | Page + hydration + auto-connect |
+| Contract read display | 10s | RPC fetch + React re-render |
+| Contract write tx | 30s | Submit + Anvil mine + UI update |
+| Page navigation | 10s | Next.js client-side routing |
+
+**Never use `waitForTimeout()`.** Always use assertion timeouts:
+
+```typescript
+// ❌ Flaky — might be too slow or too fast
+await page.waitForTimeout(5000);
+await expect(page.getByText("Done")).toBeVisible();
+
+// ✅ Resilient — polls until visible or timeout
+await expect(page.getByText("Done")).toBeVisible({ timeout: 10_000 });
+```
+
+### Native Input Gotchas
+
+**`datetime-local` inputs:** `page.fill()` does NOT fire React's synthetic `onChange` on `<input type="datetime-local">` in headless Chromium. The input value updates in the DOM but React state stays empty. Use `page.evaluate()` to set the value and dispatch events:
+
+```typescript
+// ❌ BROKEN — React state never updates
+await page.locator('input[type="datetime-local"]').fill("2026-03-01T12:00");
+
+// ✅ WORKS — dispatches events React can see
+await page.evaluate((val) => {
+  const el = document.querySelector('input[type="datetime-local"]') as HTMLInputElement;
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype, "value"
+  )!.set!;
+  nativeInputValueSetter.call(el, val);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+}, "2026-03-01T12:00");
+```
+
+This also affects `date`, `time`, and `color` input types. Regular text inputs work fine with `page.fill()`.
