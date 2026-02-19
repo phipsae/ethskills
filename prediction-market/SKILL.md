@@ -241,9 +241,27 @@ function claim(uint256 marketId) external nonReentrant {
 
 ### One-Sided Market Guards
 
-**Nobody bet on winning side (`winningPool == 0`):** No claimants exist. The losing pool has no one to pay out to. Handle by allowing cancellation or letting losers reclaim.
+**Nobody bet on winning side (`winningPool == 0`):** No claimants exist. The losing pool has no one to pay out to. Auto-cancel inside `resolve()` so losers can reclaim via `claimRefund()`:
 
-**Nobody bet on losing side (`losingPool == 0`):** Winners get their stake back, no bonus. The `grossBonus` calculation above handles this naturally (evaluates to 0).
+```solidity
+function resolve(uint256 marketId, bool outcomeYes) external {
+    Market storage m = markets[marketId];
+    require(m.outcome == Outcome.UNRESOLVED, "Already resolved");
+    require(block.timestamp > m.deadline, "Too early");
+    require(msg.sender == m.resolver, "Not resolver");
+
+    uint256 winningPool = outcomeYes ? m.yesPool : m.noPool;
+    if (winningPool == 0) {
+        m.outcome = Outcome.CANCELLED;
+        emit MarketCancelled(marketId);
+        return;
+    }
+    m.outcome = outcomeYes ? Outcome.YES : Outcome.NO;
+    emit MarketResolved(marketId, m.outcome);
+}
+```
+
+**Nobody bet on losing side (`losingPool == 0`):** Winners get their stake back, no bonus. The `grossBonus` calculation handles this naturally (evaluates to 0).
 
 **Guard in bet function:**
 ```solidity
@@ -336,9 +354,16 @@ Both are complex to implement correctly. For an MVP with trading, consider an of
 
 ### Fuzz: Payout Invariant
 
-Total payouts must never exceed total bets (minus fees):
+Total payouts must never exceed total bets (minus fees).
+
+**Note:** Use `vm.addr(explicit_pk)` for test addresses, not `makeAddr()` — see EIP-7702 warning in `testing/SKILL.md`.
 
 ```solidity
+// Test addresses — use explicit private keys for mainnet fork compatibility (EIP-7702)
+address alice = vm.addr(0xA11CE);
+address bob = vm.addr(0xB0B);
+address charlie = vm.addr(0xC0C);
+
 function testFuzz_PayoutInvariant(
     uint256 yesBet1,
     uint256 yesBet2,
@@ -369,9 +394,8 @@ function testFuzz_PayoutInvariant(
     vm.prank(bob);
     market.claim(marketId);
 
-    // Contract should retain fees only, never go negative
-    assertGe(address(market).balance, 0);
-    // Total payouts ≤ total bets
+    // The meaningful assertion: total payouts ≤ total bets
+    // (assertGe(balance, 0) is trivially true — balances are unsigned)
     uint256 totalPaid = yesBet1 + yesBet2 + noBet1 - address(market).balance;
     assertLe(totalPaid, totalBets, "Payouts exceed total bets");
 }
@@ -381,7 +405,7 @@ function testFuzz_PayoutInvariant(
 
 ```solidity
 function test_OneSidedMarket_NoLosingBets() public {
-    // Only YES bets, no NO bets
+    // Only YES bets, no NO bets (alice/bob declared via vm.addr — see fuzz example above)
     vm.prank(alice);
     market.bet{value: 1 ether}(marketId, true);
     vm.prank(bob);
