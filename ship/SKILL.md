@@ -289,7 +289,7 @@ Key guidance:
 - Never use infinite approvals
 - Implement approve flows as two-step (approve then action)
 
-**Verify:** `yarn next:build` must pass before moving to Phase 5.
+**Verify:** `yarn next:build` must pass before moving to Phase 5. Prettier formatting warnings in the output are non-blocking — they come from SE2's strict config and don't affect the build.
 
 ---
 

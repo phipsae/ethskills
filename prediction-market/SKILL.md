@@ -115,6 +115,8 @@ Simplest: market creator designates a resolver address at creation time. The res
 
 **Critical: always include a cancel escape hatch.** If the resolver disappears, user funds are locked forever.
 
+**Limitation:** The resolver can bet on their own market and resolve in their favor. This is an accepted tradeoff for Tier 1 (trusted model). If this conflict of interest matters, use Chainlink or optimistic resolution instead.
+
 ```solidity
 function cancel(uint256 marketId) external {
     Market storage m = markets[marketId];
@@ -238,6 +240,8 @@ function claim(uint256 marketId) external nonReentrant {
     emit Claimed(marketId, msg.sender, payout);
 }
 ```
+
+**Double-claim protection:** Zeroing the bet mapping before transfer (CEI) is sufficient — the `require(userBet > 0)` check prevents re-entry. A separate `hasClaimed` bool mapping is optional belt-and-suspenders; don't add it unless you have a specific reason.
 
 ### One-Sided Market Guards
 
@@ -372,7 +376,8 @@ address attacker = vm.addr(0xA77AC);
 function testFuzz_PayoutInvariant(
     uint256 yesBet1,
     uint256 yesBet2,
-    uint256 noBet1
+    uint256 noBet1,
+    bool outcomeYes  // Fuzz the resolution direction — don't hardcode YES
 ) public {
     yesBet1 = bound(yesBet1, 0.01 ether, 100 ether);
     yesBet2 = bound(yesBet2, 0.01 ether, 100 ether);
@@ -388,21 +393,58 @@ function testFuzz_PayoutInvariant(
     vm.prank(charlie);
     market.bet{value: noBet1}(marketId, false);
 
-    // Resolve YES
+    // Resolve — fuzz both YES and NO paths
+    vm.warp(deadline + 1);
+    vm.prank(resolver);
+    market.resolve(marketId, outcomeYes);
+
+    // Claim winners
+    if (outcomeYes) {
+        vm.prank(alice);
+        market.claim(marketId);
+        vm.prank(bob);
+        market.claim(marketId);
+    } else {
+        vm.prank(charlie);
+        market.claim(marketId);
+    }
+
+    // The meaningful assertion: total payouts ≤ total bets
+    // (assertGe(balance, 0) is trivially true — balances are unsigned)
+    uint256 totalPaid = totalBets - address(market).balance;
+    assertLe(totalPaid, totalBets, "Payouts exceed total bets");
+}
+```
+
+### Fuzz: ETH Solvency Invariant
+
+After all claims and fee sweeps, the contract should hold zero ETH (no funds stuck):
+
+```solidity
+function testFuzz_ContractDrainsCleanly(
+    uint256 yesBet,
+    uint256 noBet
+) public {
+    yesBet = bound(yesBet, 0.01 ether, 100 ether);
+    noBet = bound(noBet, 0.01 ether, 100 ether);
+
+    vm.prank(alice);
+    market.bet{value: yesBet}(marketId, true);
+    vm.prank(bob);
+    market.bet{value: noBet}(marketId, false);
+
     vm.warp(deadline + 1);
     vm.prank(resolver);
     market.resolve(marketId, true);
 
-    // Claim all
+    // Drain everything: winner claims, creator sweeps fees
     vm.prank(alice);
     market.claim(marketId);
-    vm.prank(bob);
-    market.claim(marketId);
+    vm.prank(creator);
+    market.claimCreatorFee(marketId);
 
-    // The meaningful assertion: total payouts ≤ total bets
-    // (assertGe(balance, 0) is trivially true — balances are unsigned)
-    uint256 totalPaid = yesBet1 + yesBet2 + noBet1 - address(market).balance;
-    assertLe(totalPaid, totalBets, "Payouts exceed total bets");
+    // Contract should hold only rounding dust (≤ 1 wei per claimer)
+    assertLe(address(market).balance, 1, "Funds stuck in contract");
 }
 ```
 
