@@ -358,11 +358,16 @@ Total payouts must never exceed total bets (minus fees).
 
 **Note:** Use `vm.addr(explicit_pk)` for test addresses, not `makeAddr()` — see EIP-7702 warning in `testing/SKILL.md`.
 
+**Fuzz run count:** For financial contracts with payout math, the default 256 runs is insufficient. Set `[fuzz] runs = 1000` in `foundry.toml`.
+
 ```solidity
 // Test addresses — use explicit private keys for mainnet fork compatibility (EIP-7702)
 address alice = vm.addr(0xA11CE);
 address bob = vm.addr(0xB0B);
 address charlie = vm.addr(0xC0C);
+address resolver = vm.addr(0xDE1E6AE);
+address creator = vm.addr(0xC8EA708);
+address attacker = vm.addr(0xA77AC);
 
 function testFuzz_PayoutInvariant(
     uint256 yesBet1,
@@ -494,4 +499,5 @@ Run through this for every prediction market contract:
 - [ ] **Cancel after resolution** — must revert (can't undo a resolution)
 - [ ] **Fee extraction** — creator fees accumulate correctly, sweep function works
 - [ ] **Self-betting (both sides)** — attacker must not profit
+- [ ] **Resolver cancels while bets are open** — Trusted EOA resolver can cancel immediately after bets are placed, effectively rugging bettors. Accepted risk for Tier 1 MVP; document for users
 - [ ] **Multiple markets** — state isolation between markets (no cross-contamination)

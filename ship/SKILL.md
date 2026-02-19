@@ -277,7 +277,7 @@ Key guidance:
 
 **Use Scaffold-ETH 2 (SE2) with Foundry.** Do NOT build a raw Next.js + wagmi app from scratch.
 
-1. **Bootstrap:** Follow `orchestration/SKILL.md` for project setup — it uses `create-eth` with the Foundry template
+1. **Bootstrap:** Follow `orchestration/SKILL.md` for project setup — it uses `create-eth` with the Foundry template. **Note:** `create-eth` requires a non-existent target directory. If the target directory already exists (e.g., pipeline or CI pre-created it), bootstrap to a temp location and move: `npx create-eth@latest /tmp/my-dapp && mv /tmp/my-dapp/* ./project/`
 2. **Copy contracts** into `packages/foundry/contracts/`, write deploy scripts in `packages/foundry/script/`
 3. **Deploy locally:** `yarn deploy` — this auto-generates `deployedContracts.ts` (no manual address patching)
 4. **Use scaffold hooks** — `useScaffoldReadContract`, `useScaffoldWriteContract`, `useScaffoldEventHistory` — NOT raw wagmi hooks. These auto-wire to deployed contract addresses and ABIs.

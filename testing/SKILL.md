@@ -418,6 +418,7 @@ Tests are code too. Sloppy tests leak into production habits and create noise th
   // NOT: token.transfer(alice, 10_000e18);               // ❌ triggers warning
   ```
 - **Ignore acronym casing notes.** Foundry's linter flags acronyms like NFT, DAO, ERC, and ABI as non-`mixedCase` (e.g., suggests `listNft` instead of `listNFT`). These are style notes, not errors — do NOT rename public contract functions based on them. Renaming breaks the ABI and any frontend code that calls the function by name.
+- **Use `uint256` for all fee/basis-point constants.** Declaring `uint16 constant FEE_BPS = 200;` then using it in `uint256` arithmetic (`grossBonus * FEE_BPS / 10_000`) fails in compile-time expressions unless explicitly cast: `uint256(FEE_BPS)`. Avoid the gotcha entirely by declaring `uint256 constant FEE_BPS = 200;`.
 - **Clean up before committing.** Run `forge build` one final time and resolve all warnings and notes. A clean build output means nothing is hiding. Acronym casing notes are the one exception — leave those alone.
 
 ---
