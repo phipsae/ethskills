@@ -73,7 +73,12 @@ export const contracts = {
   },
 } as const;
 ```
-Fill in addresses from `forge script` output and ABIs from `out/<Contract>.sol/<Contract>.json`.
+Copy the **full ABI** from `out/<Contract>.sol/<Contract>.json` — include all functions, events, and errors. Don't hand-pick entries or you'll miss events needed for subscriptions and indexing later. Fill in addresses from `forge script` output.
+
+**Create `frontend/.env.local`** — even if empty for injected-only setups, this prevents silent breakage when connectors or API keys are added later:
+```
+# NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
+```
 
 **Critical steps:**
 1. Write contracts in `packages/foundry/contracts/` (or `packages/hardhat/contracts/`)

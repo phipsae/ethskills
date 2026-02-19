@@ -68,7 +68,7 @@ Keep it offchain if it involves:
 | Lending protocol | 1-2 | Pool + oracle integration |
 | DAO / governance | 1-3 | Governor + token + timelock |
 | AI agent service | 0-1 | Maybe an ERC-8004 registration |
-| Prediction market | 1-2 | Market + resolution oracle |
+| Prediction market | 1 | Market with trusted resolver address (EOA/multisig for MVP; separate oracle contract only for decentralized resolution) |
 
 **If you need more than 3 contracts for an MVP, you're over-building.** Ship the simplest version that works, then iterate.
 

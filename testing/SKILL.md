@@ -379,6 +379,8 @@ forge test --fuzz-runs 1000
 
 **Focus your testing effort on:** Custom business logic, mathematical operations, integration points with external protocols, access control boundaries, and economic edge cases.
 
+**Guard function check order matters.** When a function has multiple `require` checks that can all be violated simultaneously, the first check that fires determines the error message. Prefer semantic checks (state: `outcome != NONE`) before timing checks (`block.timestamp < deadline`) — it produces clearer UX. For example, if a market is both resolved AND past deadline, "Market already resolved" is more helpful than "Betting period closed."
+
 **For security property tests, always assert economic outcomes.** Don't just test that a function doesn't revert — test that the attacker loses money. For example, an inflation attack test must assert `attackerFinalBalance < attackerCost`, not just that the victim received some shares.
 
 ---

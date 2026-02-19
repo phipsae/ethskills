@@ -219,7 +219,33 @@ function test_InflationAttackIsUnprofitable() public {
 }
 ```
 
-### 7. Infinite Approvals
+### 7. Prediction Market Patterns
+
+Prediction markets have unique security patterns that differ from token/vault contracts:
+
+**Resolver trust:** The resolver is typically a trusted EOA or multisig — not a separate oracle contract for MVP. If the resolver disappears, user funds are locked forever. Always include a `cancel` escape hatch that the resolver (or a timelock fallback) can trigger:
+```solidity
+// Allow resolver to cancel and refund all bettors
+function cancel(uint256 marketId) external {
+    require(msg.sender == markets[marketId].resolver, "Only resolver");
+    markets[marketId].outcome = Outcome.CANCELLED;
+    // Users call claimRefund() to get their ETH back
+}
+```
+
+**One-sided market:** If nobody bet on the winning side (`winningPool == 0`), there are no claimants — the losing pool is stuck. If nobody bet on the losing side (`losingPool == 0`), winners just get their stake back with no bonus. Guard against division-by-zero:
+```solidity
+uint256 bonus = losingPool > 0
+    ? (userBet * losingPool) / winningPool
+    : 0;
+uint256 payout = userBet + bonus;
+```
+
+**Fee accumulation:** Accumulate fees per claim rather than per resolution. Users claim at different times, so the creator sweeps incrementally. Track `creatorFeeAccumulated` and let the creator call `claimCreatorFee()` at any time.
+
+**Pure-ETH contracts don't need `SafeERC20`.** Agents trained on ERC-20 patterns may import SafeERC20 even when the contract only handles ETH. If all value transfer is via `msg.value` and `call{value:}`, skip the SafeERC20 import entirely.
+
+### 8. Infinite Approvals
 
 **Never use `type(uint256).max` as approval amount.**
 
@@ -236,7 +262,7 @@ token.approve(someContract, amountPerTx * 5); // 5 transactions worth
 
 If a contract with infinite approval gets exploited (proxy upgrade bug, governance attack, undiscovered vulnerability), the attacker can drain every approved token from every user who granted unlimited access.
 
-### 8. Access Control
+### 9. Access Control
 
 Every state-changing function needs explicit access control. "Who should be able to call this?" is the first question.
 
@@ -256,7 +282,7 @@ function emergencyWithdraw() external onlyOwner {
 
 For complex permissions, use OpenZeppelin's `AccessControl` with role-based separation (ADMIN_ROLE, OPERATOR_ROLE, etc.).
 
-### 9. Input Validation
+### 10. Input Validation
 
 Never trust inputs. Validate everything.
 
