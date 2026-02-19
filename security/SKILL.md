@@ -175,7 +175,10 @@ The virtual offset makes the attack uneconomical — the attacker would need to 
 - `deposit(0)` is a valid no-op in OZ v5 — it mints 0 shares and does NOT revert. Don't write `test_RevertWhen_DepositZero` for a v5 vault; test `test_DepositZero_MintsNoShares` instead.
 - A decimal offset of N means up to `10^N` wei of rounding dust per user on full withdrawal. For offset=3, expect up to 1000 wei dust — account for this in fuzz test tolerances.
 
-**Simulated yield pattern for testing:**
+### Simulated Yield Pattern
+
+The most common ERC-4626 test pattern — inject yield into the vault without minting new shares:
+
 ```solidity
 /// @notice Owner injects yield into the vault (simulates real yield for testing)
 function addYield(uint256 amount) external onlyOwner {
@@ -183,9 +186,10 @@ function addYield(uint256 amount) external onlyOwner {
     emit YieldAdded(amount);
 }
 ```
-This is the canonical pattern for testing vaults when you need to increase `totalAssets` without minting new shares. The owner approves the vault, then calls `addYield`.
 
-**Testing the inflation attack mitigation:**
+The owner approves the vault, then calls `addYield`. This increases `totalAssets()` which raises the share price for all existing holders. Use this for testing yield distribution, share price appreciation, and proportional withdrawal.
+
+### Testing the Inflation Attack
 Don't just log the attacker's outcome — assert it. The test must prove the attack is unprofitable:
 ```solidity
 function test_InflationAttackIsUnprofitable() public {

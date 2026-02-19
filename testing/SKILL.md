@@ -388,7 +388,14 @@ forge test --fuzz-runs 1000
 Tests are code too. Sloppy tests leak into production habits and create noise that hides real issues.
 
 - **Remove unused imports.** `forge build` emits `unused-import` notes — fix them before finalizing. Leftover imports signal copy-paste and make tests harder to read.
-- **Use `SafeERC20` in test helpers too.** Even though your MockToken's `transfer` won't fail, using `token.transfer()` instead of `token.safeTransfer()` triggers `erc20-unchecked-transfer` warnings from forge. More importantly, if you copy test patterns into production code, the unsafe habit follows. Use `SafeERC20` everywhere.
+- **Use `SafeERC20` in test helpers too.** Even though your MockToken's `transfer` won't fail, using `token.transfer()` instead of `token.safeTransfer()` triggers `erc20-unchecked-transfer` warnings from forge. More importantly, if you copy test patterns into production code, the unsafe habit follows. Use `SafeERC20` everywhere:
+  ```solidity
+  // In setUp(): fund test accounts safely
+  using SafeERC20 for IERC20;
+
+  IERC20(address(token)).safeTransfer(alice, 10_000e18);  // ✅
+  // NOT: token.transfer(alice, 10_000e18);               // ❌ triggers warning
+  ```
 - **Clean up before committing.** Run `forge build` one final time and resolve all warnings and notes. A clean build output means nothing is hiding.
 
 ---
