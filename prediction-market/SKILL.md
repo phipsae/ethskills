@@ -329,6 +329,8 @@ MarketFactory (creates markets)
 
 The market contract mints position tokens on bet, burns them on claim. An AMM or order book provides trading.
 
+**`resolve()` UI note:** The resolve function is typically restricted to the designated resolver address. For a test/demo app, it's acceptable to omit a resolver-only button from the public UI — SE2's `/debug` page exposes all contract functions and lets the resolver call it manually. For production, add a conditional resolve button visible only when `address === resolver`.
+
 ### Gnosis Conditional Tokens (The Standard)
 
 The canonical implementation. Polymarket, Augur v2, and most serious prediction markets use this framework.
@@ -351,6 +353,27 @@ Source: [github.com/gnosis/conditional-tokens-contracts](https://github.com/gnos
 - **CPMM (Constant Product):** Uniswap-style x*y=k for outcome tokens. Simpler but unbounded loss.
 
 Both are complex to implement correctly. For an MVP with trading, consider an off-the-shelf AMM or order book rather than building your own.
+
+### CPMM Swap Math (Worked Example)
+
+For a binary market with YES/NO reserves in the AMM pool:
+
+```
+Initial: yesReserve = 100, noReserve = 100, k = 10,000
+User wants to buy YES tokens with 1 ETH (2% swap fee)
+
+1. Deduct fee:    effectiveIn = 1 * 0.98 = 0.98 ETH
+2. Mint NO tokens: 0.98 NO tokens added to pool (ETH backs the new tokens)
+3. New NO reserve: 100 + 0.98 = 100.98
+4. Apply x*y=k:   newYesReserve = k / newNoReserve = 10,000 / 100.98 = 99.03
+5. YES out:        100 - 99.03 = 0.97 YES tokens sent to user
+
+After swap: yesReserve = 99.03, noReserve = 100.98, k = 10,000
+YES price moved from 0.50 → 0.505 (100.98 / (99.03 + 100.98))
+Fee (0.02 ETH worth of tokens) stays in pool, increasing k over time.
+```
+
+**Key implementation detail:** The fee stays in the pool (increases k), which is the correct LP incentive — LPs earn from every trade. Don't send fees to a separate address on each swap.
 
 ---
 
@@ -543,3 +566,48 @@ Run through this for every prediction market contract:
 - [ ] **Self-betting (both sides)** — attacker must not profit
 - [ ] **Resolver cancels while bets are open** — Trusted EOA resolver can cancel immediately after bets are placed, effectively rugging bettors. Accepted risk for Tier 1 MVP; document for users
 - [ ] **Multiple markets** — state isolation between markets (no cross-contamination)
+
+---
+
+## Frontend: Listing Markets
+
+**Do NOT use `useScaffoldEventHistory` with `fromBlock: 0n` on a mainnet fork.** The fork starts at block ~24M+ — scanning from block 0 returns empty results because the RPC can't handle the range. This is the #1 frontend pitfall for prediction markets and any contract that creates indexed items.
+
+### Counter-Based Listing (Recommended)
+
+Use a `marketCount` storage variable and index-based reads. This works reliably on any fork:
+
+```tsx
+// ✅ Counter-based listing — works on mainnet fork
+const { data: marketCount } = useScaffoldReadContract({
+  contractName: "PredictionMarket",
+  functionName: "marketCount",
+  watch: true,
+});
+
+const total = Number(marketCount ?? 0n);
+const marketIds = Array.from({ length: total }, (_, i) => total - 1 - i); // newest first
+
+return (
+  <div>
+    {total === 0 ? (
+      <p>No markets yet</p>
+    ) : (
+      marketIds.map(id => <MarketCard key={id} marketId={BigInt(id)} />)
+    )}
+  </div>
+);
+```
+
+Each `MarketCard` reads its own market data via `useScaffoldReadContract({ functionName: "markets", args: [marketId] })`.
+
+```tsx
+// ❌ Event-history listing — returns empty on mainnet fork at block 24M+
+const { data: events } = useScaffoldEventHistory({
+  contractName: "PredictionMarket",
+  eventName: "MarketCreated",
+  fromBlock: 0n, // ← This is the problem
+});
+```
+
+This pattern applies to any contract that creates indexed items (auctions, vaults, staking positions, NFT listings). Always expose a counter + getter, and use counter-based iteration in the frontend.

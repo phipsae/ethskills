@@ -497,6 +497,8 @@ test.describe("dApp E2E", () => {
     await page.goto("/");
     // Wait for burner wallet auto-connect (SE2 + chains.foundry)
     await expect(page.getByText(/ETH/)).toBeVisible({ timeout: 15_000 });
+    // If your page shows contract data, also wait for it before each test:
+    // await expect(page.getByText(/Total Supply|Active Markets|No Markets/i)).toBeVisible({ timeout: 15_000 });
   });
 
   test("page loads without errors", async ({ page }) => {
@@ -547,7 +549,7 @@ page.locator("[data-testid='stake-btn']")  // SE2 doesn't add these
 | Contract write tx | 30s | Submit + Anvil mine + UI update |
 | Page navigation | 10s | Next.js client-side routing |
 
-**Never use `waitForTimeout()`.** Always use assertion timeouts:
+**Never use `waitForTimeout()`.** Always use assertion timeouts. This rule is non-negotiable — `waitForTimeout` creates tests that pass in warm environments and fail in cold replays:
 
 ```typescript
 // ❌ Flaky — might be too slow or too fast
@@ -556,6 +558,28 @@ await expect(page.getByText("Done")).toBeVisible();
 
 // ✅ Resilient — polls until visible or timeout
 await expect(page.getByText("Done")).toBeVisible({ timeout: 10_000 });
+```
+
+**Write transaction tests must assert a UI state change**, not just that the page didn't crash. After a buy/stake/mint, assert the new balance, updated price, or success indicator:
+
+```typescript
+// ❌ Weak — only checks page is still alive
+await page.getByRole("button", { name: /buy/i }).click();
+await page.waitForTimeout(3000); // hoping tx completed
+
+// ✅ Strong — asserts economic outcome in the UI
+await page.getByRole("button", { name: /buy/i }).click();
+await expect(page.getByText(/balance: [1-9]/i)).toBeVisible({ timeout: 30_000 });
+```
+
+**Pre-seed chain state for complex write tests.** When the write function under test requires complex UI inputs (datetime pickers, multi-step forms), use `cast send` in `beforeAll` to set up the state, then test simpler write functions in E2E:
+
+```typescript
+test.beforeAll(async () => {
+  // Pre-create a market via cast so E2E tests can focus on buy/sell
+  const { execSync } = require("child_process");
+  execSync(`cast send ${CONTRACT} "createMarket(string,address,uint256)" "Test" ${RESOLVER} ${DEADLINE} --value 1ether --rpc-url http://127.0.0.1:8545 --private-key ${DEPLOYER_PK}`);
+});
 ```
 
 ### Native Input Gotchas
@@ -579,3 +603,21 @@ await page.evaluate((val) => {
 ```
 
 This also affects `date`, `time`, and `color` input types. Regular text inputs work fine with `page.fill()`.
+
+### Contract Address in E2E Tests
+
+**Never hardcode deployed contract addresses in E2E tests.** When Anvil restarts and `yarn deploy` reruns, the address changes. Import from SE2's generated file:
+
+```typescript
+import deployedContracts from "../contracts/deployedContracts";
+
+const chainId = 31337; // foundry
+const CONTRACT = deployedContracts[chainId].PredictionMarket.address;
+```
+
+If the import doesn't work in Playwright's test context (different tsconfig), use `cast` to read it:
+
+```typescript
+const { execSync } = require("child_process");
+const address = execSync(`jq -r '.["31337"].PredictionMarket.address' packages/nextjs/contracts/deployedContracts.ts`).toString().trim();
+```
