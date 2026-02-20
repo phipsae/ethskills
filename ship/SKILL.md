@@ -221,6 +221,7 @@ Find your archetype below. Each tells you exactly how many contracts you need, w
 
 **Common mistakes:**
 - Pool-based only (no secondary trading) when users expect to trade positions
+- Buy-only AMM with no sell functions — Tier 2 must have both `buyYes`/`buyNo` AND `sellYes`/`sellNo`. Without sell, users can't exit positions before resolution, which defeats tokenized positions entirely.
 - Single EOA resolver with no fallback (funds locked if resolver disappears)
 - Inline fee sending on every claim (accumulate fees, let creator sweep)
 - Ignoring one-sided market edge case (division by zero when nobody bet on winning/losing side)

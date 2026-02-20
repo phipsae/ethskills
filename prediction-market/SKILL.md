@@ -329,7 +329,19 @@ MarketFactory (creates markets)
 
 The market contract mints position tokens on bet, burns them on claim. An AMM or order book provides trading.
 
-**`resolve()` UI note:** The resolve function is typically restricted to the designated resolver address. For a test/demo app, it's acceptable to omit a resolver-only button from the public UI — SE2's `/debug` page exposes all contract functions and lets the resolver call it manually. For production, add a conditional resolve button visible only when `address === resolver`.
+**Key functions (Tier 2 AMM):**
+
+```solidity
+// Buy: ETH in → split to YES+NO → swap unwanted side through pool → user gets desired side
+function buyYes(uint256 marketId, uint256 minYesOut) external payable;
+function buyNo(uint256 marketId, uint256 minNoOut) external payable;
+
+// Sell: user sends tokens → pool swaps to get matching pair → merge YES+NO → ETH out
+function sellYes(uint256 marketId, uint256 yesAmount, uint256 minEthOut) external;
+function sellNo(uint256 marketId, uint256 noAmount, uint256 minEthOut) external;
+```
+
+**`resolve()` UI note:** Always add a conditional resolve panel that shows only when `connectedAddress === market.resolver`. For test/demo apps SE2's `/debug` page is a fallback, but an in-app resolve button provides a complete user flow.
 
 ### Gnosis Conditional Tokens (The Standard)
 
@@ -375,6 +387,33 @@ Fee (0.02 ETH worth of tokens) stays in pool, increasing k over time.
 
 **Key implementation detail:** The fee stays in the pool (increases k), which is the correct LP incentive — LPs earn from every trade. Don't send fees to a separate address on each swap.
 
+### CPMM Sell Math (Reverse of Buy)
+
+Selling is the exact reverse of buying, using the **merge** primitive:
+- **Buy YES**: ETH → split to YES+NO pair → sell NO into pool (NO in → YES out via k) → user gets YES
+- **Sell YES**: User gives YES to pool → pool swaps YES→NO via k → merge matched YES+NO pair → ETH out to user
+
+```
+After buy: yesReserve = 99.03, noReserve = 100.98, k ≈ 10,000
+User wants to sell 0.5 YES tokens (2% fee)
+
+1. Pool receives 0.5 YES: temp yesReserve = 99.53
+2. Deduct fee:           yesInAfterFee = 0.5 * 0.98 = 0.49
+3. Apply x*y=k:          newYesReserve = 99.03 + 0.49 = 99.52
+4. NO out from pool:     noOut = 100.98 - (10,000 / 99.52) = 100.98 - 100.48 = 0.50
+5. Merge 0.50 matched pairs: burn 0.50 YES + 0.50 NO → 0.50 ETH
+6. Return 0.50 ETH to user
+
+After sell: yesReserve = 99.52, noReserve = 100.48, k ≈ 10,000
+YES price moved from 0.505 → 0.502 (selling YES pushed price down ✓)
+```
+
+**Two sell API styles:**
+- **Input-specified** (simpler for MVPs): "I'm selling X tokens" → contract computes ETH out. Use `minEthOut` for slippage protection.
+- **Output-specified** (Gnosis FPMM style): "I want X ETH back" → contract computes tokens needed. More UX-friendly but harder to implement.
+
+For an MVP, use input-specified. Both are valid.
+
 ---
 
 ## Testing Patterns
@@ -389,12 +428,12 @@ Total payouts must never exceed total bets (minus fees).
 
 ```solidity
 // Test addresses — use explicit private keys for mainnet fork compatibility (EIP-7702)
-address alice = vm.addr(0xA11CE);
-address bob = vm.addr(0xB0B);
-address charlie = vm.addr(0xC0C);
-address resolver = vm.addr(0xDE1E6AE);
-address creator = vm.addr(0xC8EA708);
-address attacker = vm.addr(0xA77AC);
+address alice = vm.addr(uint256(keccak256("alice")));
+address bob = vm.addr(uint256(keccak256("bob")));
+address charlie = vm.addr(uint256(keccak256("charlie")));
+address resolver = vm.addr(uint256(keccak256("resolver")));
+address creator = vm.addr(uint256(keccak256("creator")));
+address attacker = vm.addr(uint256(keccak256("attacker")));
 
 function testFuzz_PayoutInvariant(
     uint256 yesBet1,
