@@ -457,6 +457,13 @@ Scaffold-ETH 2 auto-connects a burner wallet when `targetNetworks` includes `cha
 await expect(page.getByText(/ETH/)).toBeVisible({ timeout: 15_000 });
 ```
 
+**Fragile balance regex warning:** The balance text format varies by SE2 version and locale — `"0 ETH"` vs `"0.00 ETH"` vs `"10000.00 ETH"`. If `/\d+\.?\d*\s*ETH/` proves flaky, fall back to just `/ETH/` (checks that the balance component rendered at all) or target the header element by role:
+
+```typescript
+// More resilient — just checks ETH text exists anywhere in the header
+await expect(page.locator("header").getByText(/ETH/)).toBeVisible({ timeout: 15_000 });
+```
+
 ### What to Test
 
 - **Page loads without errors** — no hydration errors, no missing providers

@@ -327,6 +327,29 @@ MarketFactory (creates markets)
     └── PositionToken.sol — ERC-1155 with YES (id=0) and NO (id=1) tokens
 ```
 
+**Combined contract pattern:** For MVPs, a single contract that inherits ERC-1155 and acts as its own pool custodian is simpler than separate contracts. When the market contract holds its own ERC-1155 tokens (minting to `address(this)` for pool reserves), it must also inherit `ERC1155Holder` — otherwise `_mint(address(this), ...)` reverts with `ERC1155InvalidReceiver`:
+
+```solidity
+import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+contract PredictionMarketAMM is ERC1155, ERC1155Holder, ReentrancyGuard {
+    function supportsInterface(bytes4 id) public view override(ERC1155, ERC1155Holder) returns (bool) {
+        return super.supportsInterface(id);
+    }
+    // ...
+}
+```
+
+**Size warning:** Tier 2 contracts combining ERC-1155, CPMM math, and market logic often exceed EIP-170's 24KB limit. Enable the optimizer in `foundry.toml`:
+
+```toml
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+```
+
 The market contract mints position tokens on bet, burns them on claim. An AMM or order book provides trading.
 
 **Key functions (Tier 2 AMM):**
@@ -342,6 +365,8 @@ function sellNo(uint256 marketId, uint256 noAmount, uint256 minEthOut) external;
 ```
 
 **`resolve()` UI note:** Always add a conditional resolve panel that shows only when `connectedAddress === market.resolver`. For test/demo apps SE2's `/debug` page is a fallback, but an in-app resolve button provides a complete user flow.
+
+**EIP-7702 in deploy scripts:** Don't call `createMarket` in your deploy script if the creator/deployer address receives ERC-1155 tokens. On a mainnet fork, the SE2 default deployer (Anvil account #9) has EIP-7702 delegation code, causing `ERC1155InvalidReceiver` on mint. Either skip sample market creation in the deploy script, or use a fresh `vm.addr(uint256(keccak256("deployer")))` address.
 
 ### Gnosis Conditional Tokens (The Standard)
 
@@ -650,3 +675,34 @@ const { data: events } = useScaffoldEventHistory({
 ```
 
 This pattern applies to any contract that creates indexed items (auctions, vaults, staking positions, NFT listings). Always expose a counter + getter, and use counter-based iteration in the frontend.
+
+### LP Management UI (Tier 2 AMM)
+
+For Tier 2 AMMs, include an LP management panel alongside the trading UI. LP token holders must be able to manage their position through the app — the `/debug` page is not a substitute:
+
+- **Add Liquidity** — ETH input + button. Mints LP tokens proportional to existing reserves.
+- **Remove Liquidity** — LP token amount input + button. Burns LP tokens, returns proportional ETH.
+- **Redeem LP** — Available after resolution. Burns LP tokens, returns remaining ETH (including accumulated fees).
+
+### Slippage Protection in Frontend
+
+The contract has `minYesOut`/`minNoOut`/`minEthOut` slippage parameters — wire them in the UI. Hardcoding `0n` disables sandwich attack protection entirely:
+
+```tsx
+// ✅ Compute 1% slippage tolerance from preview
+const minOut = previewAmount * 99n / 100n;
+await writeContractAsync({ functionName: "buyYes", args: [marketId, minOut], value: ethAmount });
+
+// ❌ No protection — vulnerable to sandwich attacks
+await writeContractAsync({ functionName: "buyYes", args: [marketId, 0n], value: ethAmount });
+```
+
+### Multi-Market ETH Tracking
+
+If one contract handles multiple markets, `redeemLP` cannot use `address(this).balance` — it returns the total ETH across all markets. Track per-market liquidity separately:
+
+```solidity
+mapping(uint256 => uint256) public marketLiquidity; // ETH held per market
+```
+
+Update `marketLiquidity[marketId]` on every ETH-moving operation (buy, sell, redeem, cancel). For a single-market demo contract this isn't needed, but it's essential for production multi-market deployments.
