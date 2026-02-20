@@ -364,7 +364,7 @@ function sellYes(uint256 marketId, uint256 yesAmount, uint256 minEthOut) externa
 function sellNo(uint256 marketId, uint256 noAmount, uint256 minEthOut) external;
 ```
 
-**`resolve()` UI note:** Always add a conditional resolve panel that shows only when `connectedAddress === market.resolver`. For test/demo apps SE2's `/debug` page is a fallback, but an in-app resolve button provides a complete user flow.
+**`resolve()` UI note:** The Resolve tab must always be visible in the MarketCard tab layout (see "Frontend: Tier 2 AMM Page Structure" below). Don't hide the entire tab behind role/timing checks — show the tab, but vary the content based on the user's role and market state.
 
 **EIP-7702 in deploy scripts:** Don't call `createMarket` in your deploy script if the creator/deployer address receives ERC-1155 tokens. On a mainnet fork, the SE2 default deployer (Anvil account #9) has EIP-7702 delegation code, causing `ERC1155InvalidReceiver` on mint. Either skip sample market creation in the deploy script, or use a fresh `vm.addr(uint256(keccak256("deployer")))` address.
 
@@ -676,13 +676,66 @@ const { data: events } = useScaffoldEventHistory({
 
 This pattern applies to any contract that creates indexed items (auctions, vaults, staking positions, NFT listings). Always expose a counter + getter, and use counter-based iteration in the frontend.
 
-### LP Management UI (Tier 2 AMM)
+### Frontend: Tier 2 AMM Page Structure
 
-For Tier 2 AMMs, include an LP management panel alongside the trading UI. LP token holders must be able to manage their position through the app — the `/debug` page is not a substitute:
+For Tier 2 AMMs, each `MarketCard` must use a **DaisyUI tabbed layout** with 3 tabs. This is the #1 structural decision — without it, LP management and resolve controls end up hidden or missing entirely.
 
+```
+┌─ MarketCard ─────────────────────────────────────────┐
+│  "Will ETH hit $5k?"              [UNRESOLVED]       │
+│  YES 52% ██████████████░░░░░░░░░░░░░░░░ NO 48%      │
+│                                                       │
+│  [Trade]  [Liquidity]  [Resolve]                     │
+│  ┌─────────────────────────────────────────────┐     │
+│  │  Trade tab:                                  │     │
+│  │    Buy YES: [___] ETH  [Buy]                 │     │
+│  │    Buy NO:  [___] ETH  [Buy]                 │     │
+│  │    Sell YES: [___] tokens [Sell] (if > 0)    │     │
+│  │    Sell NO:  [___] tokens [Sell] (if > 0)    │     │
+│  └─────────────────────────────────────────────┘     │
+└───────────────────────────────────────────────────────┘
+```
+
+**DaisyUI tabs implementation:**
+
+```tsx
+const [activeTab, setActiveTab] = useState("trade");
+
+{/* Inside MarketCard, below the price bar */}
+<div role="tablist" className="tabs tabs-bordered mb-4">
+  <button role="tab" className={`tab ${activeTab === "trade" ? "tab-active" : ""}`}
+    onClick={() => setActiveTab("trade")}>Trade</button>
+  <button role="tab" className={`tab ${activeTab === "liquidity" ? "tab-active" : ""}`}
+    onClick={() => setActiveTab("liquidity")}>Liquidity</button>
+  <button role="tab" className={`tab ${activeTab === "resolve" ? "tab-active" : ""}`}
+    onClick={() => setActiveTab("resolve")}>Resolve</button>
+</div>
+```
+
+**Tab 1: Trade** (default active tab)
+- Buy YES: ETH amount input + Buy button (calls `buyYes` with slippage)
+- Buy NO: ETH amount input + Buy button (calls `buyNo` with slippage)
+- Sell YES: token amount input + Sell button — **only shown if user's YES balance > 0**
+- Sell NO: token amount input + Sell button — **only shown if user's NO balance > 0**
+- After resolution: replace buy/sell with a Redeem button for winning tokens
+
+**Tab 2: Liquidity** (always visible)
+- Show user's LP token balance
 - **Add Liquidity** — ETH input + button. Mints LP tokens proportional to existing reserves.
 - **Remove Liquidity** — LP token amount input + button. Burns LP tokens, returns proportional ETH.
-- **Redeem LP** — Available after resolution. Burns LP tokens, returns remaining ETH (including accumulated fees).
+- **Redeem LP** — shown after resolution. Burns LP tokens, returns remaining ETH (including accumulated fees).
+
+**Tab 3: Resolve** (always visible as a tab — content varies by state)
+
+The tab itself is **never hidden**. This is the critical design decision — if the entire panel is conditionally rendered, users can't find it. Instead, always show the tab and vary the content:
+
+| User role | Market state | Tab content |
+|-----------|-------------|-------------|
+| Not resolver | Any | "Only the resolver (0x...) can resolve this market" |
+| Resolver | Betting open | "Betting still open. Resolution available after [deadline]" |
+| Resolver | Deadline passed, unresolved | Resolve YES / Resolve NO / Cancel Market buttons |
+| Anyone | Already resolved | "Market resolved: YES" or "Market resolved: NO" |
+| Anyone | Cancelled | "Market was cancelled. Claim refunds on the Trade tab." |
 
 ### Slippage Protection in Frontend
 
