@@ -342,6 +342,25 @@ contract PredictionMarketAMM is ERC1155, ERC1155Holder, ReentrancyGuard {
 }
 ```
 
+**Do NOT add `ERC1155Supply`.** Combining `ERC1155Supply` + `ERC1155Holder` creates a diamond `_update` conflict — both override `_update` from `ERC1155` and Solidity can't resolve the ambiguity. Instead, track total supply manually:
+
+```solidity
+mapping(uint256 => uint256) private _totalSupply;
+
+function totalSupply(uint256 id) public view returns (uint256) {
+    return _totalSupply[id];
+}
+
+function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
+    internal override(ERC1155) {
+    super._update(from, to, ids, values);
+    for (uint256 i = 0; i < ids.length; i++) {
+        if (from == address(0)) _totalSupply[ids[i]] += values[i];
+        if (to == address(0)) _totalSupply[ids[i]] -= values[i];
+    }
+}
+```
+
 **Size warning:** Tier 2 contracts combining ERC-1155, CPMM math, and market logic often exceed EIP-170's 24KB limit. Enable the optimizer in `foundry.toml`:
 
 ```toml
@@ -363,6 +382,8 @@ function buyNo(uint256 marketId, uint256 minNoOut) external payable;
 function sellYes(uint256 marketId, uint256 yesAmount, uint256 minEthOut) external;
 function sellNo(uint256 marketId, uint256 noAmount, uint256 minEthOut) external;
 ```
+
+**Sell flow: no `setApprovalForAll` needed.** If your contract's sell function uses internal `_safeTransferFrom(msg.sender, address(this), ...)` (OZ's internal function, bypasses operator approval checks), users do NOT need to call `setApprovalForAll` before selling. Only add an approval step if your sell routes through the external `safeTransferFrom`.
 
 **`resolve()` UI note:** The Resolve tab must always be visible in the MarketCard tab layout (see "Frontend: Tier 2 AMM Page Structure" below). Don't hide the entire tab behind role/timing checks — show the tab, but vary the content based on the user's role and market state.
 
@@ -737,18 +758,40 @@ The tab itself is **never hidden**. This is the critical design decision — if 
 | Anyone | Already resolved | "Market resolved: YES" or "Market resolved: NO" |
 | Anyone | Cancelled | "Market was cancelled. Claim refunds on the Trade tab." |
 
-### Slippage Protection in Frontend
-
-The contract has `minYesOut`/`minNoOut`/`minEthOut` slippage parameters — wire them in the UI. Hardcoding `0n` disables sandwich attack protection entirely:
+**Critical: check `bettingDeadline` before showing resolve buttons.** Don't show Resolve YES / Resolve NO to the resolver while betting is still open — the contract reverts, but the UX is confusing. Gate the buttons:
 
 ```tsx
-// ✅ Compute 1% slippage tolerance from preview
-const minOut = previewAmount * 99n / 100n;
-await writeContractAsync({ functionName: "buyYes", args: [marketId, minOut], value: ethAmount });
+const deadlinePassed = market.deadline < BigInt(Math.floor(Date.now() / 1000));
+const isResolver = connectedAddress === market.resolver;
+// Show resolve buttons ONLY when: isResolver && deadlinePassed && !resolved
+```
 
-// ❌ No protection — vulnerable to sandwich attacks
+### Slippage Protection in Frontend
+
+The contract has `minYesOut`/`minNoOut`/`minEthOut` slippage parameters — wire them in the UI. Hardcoding `0n` disables sandwich attack protection entirely. Two builders in a row have shipped with `0n` — use this complete pattern:
+
+```tsx
+// ✅ Wire previewBuy into the buy handler for 1% slippage tolerance
+const { data: previewOut } = useScaffoldReadContract({
+  contractName: "PredictionMarketAMM",
+  functionName: "previewBuy",
+  args: [marketId, true, parseEther(buyAmount || "0")],
+});
+const minOut = previewOut ? previewOut * 99n / 100n : 0n;
+
+const handleBuyYes = async () => {
+  await writeContractAsync({
+    functionName: "buyYes",
+    args: [marketId, minOut],
+    value: parseEther(buyAmount),
+  });
+};
+
+// ❌ NEVER hardcode 0n — vulnerable to sandwich attacks
 await writeContractAsync({ functionName: "buyYes", args: [marketId, 0n], value: ethAmount });
 ```
+
+Apply the same pattern for `buyNo`, `sellYes` (with `previewSell`), and `sellNo`.
 
 ### Multi-Market ETH Tracking
 
