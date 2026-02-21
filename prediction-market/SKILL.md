@@ -361,6 +361,8 @@ function _update(address from, address to, uint256[] memory ids, uint256[] memor
 }
 ```
 
+**LP redemption ordering in CANCELLED state:** Without `ERC1155Supply`, the contract cannot compute how much ETH belongs to user tokens vs LP tokens when cancelled. If an LP calls `redeemLP` before users call `claimRefund`, the LP drains ETH that should cover user refunds. For an MVP with a trusted LP/creator, this is an accepted tradeoff. For production, track `userETH` separately per market or require all user claims before LP redemption.
+
 **Size warning:** Tier 2 contracts combining ERC-1155, CPMM math, and market logic often exceed EIP-170's 24KB limit. Enable the optimizer in `foundry.toml`:
 
 ```toml
@@ -459,6 +461,20 @@ YES price moved from 0.505 → 0.502 (selling YES pushed price down ✓)
 - **Output-specified** (Gnosis FPMM style): "I want X ETH back" → contract computes tokens needed. More UX-friendly but harder to implement.
 
 For an MVP, use input-specified. Both are valid.
+
+**Guard against sell underflow:** When the pool is heavily imbalanced (>90% one-sided), CPMM math can yield `noOut > yR + yesAmount` in `sellYes` (or `yesOut > nR + noAmount` in `sellNo`). This causes an integer underflow when updating the reserve. Add a require before the reserve update:
+
+```solidity
+// In sellYes, after computing noOut from x*y=k:
+require(yR + yesAmount >= noOut, "Trade too large for pool");
+m.yesReserve = yR + yesAmount - noOut;
+
+// Same pattern in sellNo:
+require(nR + noAmount >= yesOut, "Trade too large for pool");
+m.noReserve = nR + noAmount - yesOut;
+```
+
+This is a fuzz-discoverable bug — test with `[fuzz] runs = 1000` and large amounts on imbalanced pools.
 
 ---
 
@@ -791,7 +807,7 @@ const handleBuyYes = async () => {
 await writeContractAsync({ functionName: "buyYes", args: [marketId, 0n], value: ethAmount });
 ```
 
-Apply the same pattern for `buyNo`, `sellYes` (with `previewSell`), and `sellNo`.
+Apply the same pattern for `buyNo`, `sellYes` (with `previewSell`), and `sellNo`. **Also apply to `removeLiquidity`** — LP removal has the same sandwich risk. Preview the ETH out and pass `minEthOut = preview * 99n / 100n`.
 
 ### Multi-Market ETH Tracking
 

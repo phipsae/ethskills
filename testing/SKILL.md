@@ -249,14 +249,20 @@ contract SwapTest is Test {
 
 ### EIP-7702 Warning (Mainnet Fork)
 
-On a mainnet fork, Anvil default accounts and `makeAddr()`-generated addresses may have **EIP-7702 delegation code** (`0xef01...`). OpenZeppelin's `_safeMint` and `safeTransferFrom` detect bytecode on these addresses, call `onERC721Received`, and revert with `ERC721InvalidReceiver` because the delegation target doesn't implement the interface.
+On a mainnet fork, Anvil default accounts and `makeAddr()`-generated addresses may have **EIP-7702 delegation code** (`0xef01...`). This affects **all safe transfer acceptance checks**, not just ERC-721:
 
-**This breaks any forge script or fork-mode test that mints NFTs to derived addresses.**
+- **ERC-721**: `_safeMint` / `safeTransferFrom` → calls `onERC721Received` → reverts with `ERC721InvalidReceiver`
+- **ERC-1155**: `_mint` / `_mintBatch` / `safeTransferFrom` → calls `onERC1155Received` → reverts with `ERC1155InvalidReceiver`
+
+Any function that mints or transfers tokens to a 7702-enabled address will revert — this includes `createMarket`, `buyYes`, `buyNo`, `deposit`, or any function that mints tokens to `msg.sender`.
+
+**This breaks any forge script or fork-mode test that mints tokens to derived addresses.**
 
 ```solidity
 // ❌ BREAKS on mainnet fork — alice may have EIP-7702 delegation code
 address alice = makeAddr("alice");
 nft.mint(alice, tokenId); // _safeMint → onERC721Received → revert
+// Also breaks: market.buyYes{value: 1 ether}(id, 0); // ERC-1155 _mint → revert
 
 // ❌ ALSO BREAKS — small "cute" PKs derive known addresses that are often delegated
 uint256 constant ALICE_PK = 0xA11CE;
@@ -627,4 +633,37 @@ If the import doesn't work in Playwright's test context (different tsconfig), us
 ```typescript
 const { execSync } = require("child_process");
 const address = execSync(`jq -r '.["31337"].PredictionMarket.address' packages/nextjs/contracts/deployedContracts.ts`).toString().trim();
+```
+
+### E2E State Isolation
+
+`beforeAll` contract setup (e.g., `cast send createMarket`) is sensitive to accumulated Anvil state from previous test runs. If your contract accumulates state (markets, auctions, positions), subsequent runs may fail because selectors match multiple elements or setup transactions revert silently.
+
+**Design `beforeAll` to be resilient:**
+- Wrap `execSync` cast commands in try-catch and log failures explicitly — silent `cast send` failures with `{ stdio: "pipe" }` are hard to debug
+- Use unique identifiers (timestamps, random strings) in created entities so tests don't collide with leftover state
+- If using `{ stdio: "pipe" }` on `execSync`, check the result or catch errors:
+
+```typescript
+function castSend(cmd: string): string {
+  try {
+    return execSync(cmd, { stdio: "pipe" }).toString().trim();
+  } catch (e: any) {
+    console.error("cast send failed:", e.stderr?.toString());
+    throw e;
+  }
+}
+```
+
+### Multi-Entity Selector Strategy
+
+In contracts that hold multiple instances (markets, auctions, NFT listings), accumulated state from previous test runs causes `getByText()` to match multiple elements. Playwright strict mode throws when more than one match exists.
+
+**Always use `.first()` on selectors that may match multiple cards:**
+```typescript
+// ✅ Handles accumulated state from previous runs
+await expect(page.getByText(/my market question/i).first()).toBeVisible();
+
+// ❌ Fails if multiple markets contain similar text
+await expect(page.getByText(/my market question/i)).toBeVisible();
 ```
