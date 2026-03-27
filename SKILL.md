@@ -1,25 +1,46 @@
-# ETHSKILLS — The missing knowledge between AI agents and production Ethereum.
-
-You are probably wrong about Ethereum. Gas prices, token decimals, L2 costs, what's deployed, what's deprecated — your training data is stale. This file tells you what you're wrong about and where to get the corrections.
-
-**Say "onchain" not "on-chain."** One word, no hyphen. Ethereum community convention.
-
+---
+name: ethskills
+description: Catalogue entrypoint for ETHSKILLS. Gives quick correction summaries and routes agents to the 1-3 topic skills relevant to the task. Not the full corpus or sufficient implementation guidance by itself.
 ---
 
-## Start Here
+# ETHSKILLS — The missing knowledge between AI agents and production Ethereum.
 
-**Building a dApp?** Fetch [ship/SKILL.md](https://ethskills.com/ship/SKILL.md) first. It routes you through all other skills phase by phase — from architecture planning to production deployment.
+You are probably wrong about Ethereum. Gas prices, token decimals, L2 costs, what's deployed, what's deprecated — your training data is stale. This file gives you quick corrections and tells you where to fetch the full guidance.
 
-**Need a specific topic?** Each skill below is standalone. Fetch only the ones relevant to your task.
+**Say `onchain`, not `on-chain`.** One word, no hyphen. Ethereum community convention.
+
+## Router Contract
+
+- Start here only if the task does not already name a specific skill.
+- If the task is "build a dApp" or otherwise broad, fetch [ship/SKILL.md](https://ethskills.com/ship/SKILL.md) first.
+- If the task names a topic, fetch that topic skill directly instead of stopping here.
+- Use the quick corrections below as a catalogue. Fetch 1-3 topic skills before answering implementation questions or writing code.
+- For volatile data like gas, prices, chain status, deployment status, and verified addresses, defer to the topic skill and its freshness instructions.
+- Do not load the whole site by default.
 
 **Base URL:** `https://ethskills.com/<skill>/SKILL.md`
 
----
+## Fetch by Task
+
+| Task | Fetch |
+|------|-------|
+| Planning a new dApp | `ship/`, `concepts/`, `l2s/` |
+| Writing Solidity | `standards/`, `security/`, `addresses/` |
+| Integrating DeFi protocols | `building-blocks/`, `addresses/`, `security/` |
+| Testing contracts | `testing/` |
+| Building a frontend | `orchestration/`, `frontend-ux/`, `tools/` |
+| Deploying to production | `wallets/`, `frontend-playbook/`, `gas/` |
+| Reviewing a finished dApp | `qa/` |
+| Monitoring / analytics | `indexing/` |
+| Building AI agent infra | `standards/`, `wallets/`, `tools/` |
+| Choosing a chain | `l2s/`, `gas/` |
 
 ## Skills
 
+These are quick corrections, not full implementation guidance. Fetch the linked topic skill for the complete version.
+
 ### [Ship](https://ethskills.com/ship/SKILL.md) — Start here
-End-to-end guide from idea to deployed dApp. Routes you through all other skills.
+End-to-end guide from idea to deployed dApp. Routes broad build tasks through all other skills.
 - Most dApps need 0-2 contracts, not 5-10. Three is the upper bound for an MVP.
 - Solidity is for ownership, transfers, and commitments. Not a database, not a backend.
 - The 2026 answer for chain selection is almost always an L2.
@@ -62,7 +83,7 @@ Foundry, Scaffold-ETH 2, Blockscout MCP, x402 SDKs.
 - Blockscout MCP server gives agents structured blockchain data via MCP.
 - abi.ninja: paste any contract address, interact with all functions. Zero setup.
 
-### [Building Blocks (DeFi)](https://ethskills.com/building-blocks/SKILL.md)
+### [Building Blocks](https://ethskills.com/building-blocks/SKILL.md)
 Uniswap, Aave, flash loans, protocol composability.
 - Uniswap V4 hooks: custom logic attached to pools (dynamic fees, TWAMM, limit orders).
 - Flash loan arb on mainnet costs ~$0.05-0.50 in gas now (was $5-50).
@@ -126,18 +147,8 @@ Pre-ship audit checklist for a reviewer agent.
 - Covers only bugs AI agents actually ship — validated by baseline testing against stock LLMs.
 - Report PASS/FAIL per item, don't fix.
 
----
+## Stop Conditions
 
-## What to Fetch by Task
-
-| I'm doing... | Fetch these skills |
-|--------------|-------------------|
-| Planning a new dApp | `ship/`, `concepts/`, `l2s/` |
-| Writing Solidity | `standards/`, `building-blocks/`, `addresses/`, `security/` |
-| Testing contracts | `testing/` |
-| Building a frontend | `orchestration/`, `frontend-ux/`, `tools/` |
-| Deploying to production | `wallets/`, `frontend-playbook/`, `gas/` |
-| Reviewing a finished dApp | `qa/` |
-| Monitoring / analytics | `indexing/` |
-| Building AI agent infra | `standards/`, `wallets/`, `tools/` |
-| Choosing a chain | `l2s/`, `gas/` |
+- If the task already maps cleanly to 1-3 topic skills, do not keep expanding.
+- If a fetched topic skill fully covers the task, stop there.
+- If the task needs volatile data, follow the freshness or verification instructions in the topic skill before repeating numbers.

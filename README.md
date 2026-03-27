@@ -4,13 +4,15 @@ LLMs think gas is 30 gwei. It's 0.05. They've never heard of ERC-8004 or x402. T
 
 ## How It Works
 
-Each skill is a markdown file. Give any URL to your AI agent — it reads it and instantly corrects its Ethereum knowledge.
+Each skill is a markdown file. Start with the catalogue or give a topic URL directly to your AI agent.
 
 ```
-https://ethskills.com/SKILL.md          ← everything (133KB)
-https://ethskills.com/gas/SKILL.md      ← just gas & costs
+https://ethskills.com/SKILL.md          ← catalogue (start here)
+https://ethskills.com/gas/SKILL.md      ← current gas & costs
 https://ethskills.com/why/SKILL.md      ← why ethereum
 ```
+
+The root `SKILL.md` is a catalogue-style entrypoint. It gives the agent quick correction summaries and tells it which 1-3 topic skills to fetch next; it is not a full aggregate dump.
 
 No install. No CLI. No package manager. Just a URL.
 

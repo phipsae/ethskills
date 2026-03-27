@@ -11,14 +11,14 @@ There is no build step, no package manager, no dependencies, and no tests. This 
 ## Repository Structure
 
 - `index.html` — Single-page static site (amber CRT aesthetic, vanilla JS, modal-based skill reader)
-- `SKILL.md` — Combined file aggregating all skills (~133KB), regenerated after merges
+- `SKILL.md` — Catalogue-style entrypoint with quick correction summaries and routing guidance
 - `<topic>/SKILL.md` — Individual skill files (gas, wallets, l2s, standards, tools, etc.)
 - Redirect stubs: `contracts/`, `defi/`, `l2/`, `layer2/` redirect to their renamed counterparts
 - `.github/workflows/update-gas.yml` — Weekly GitHub Action that fetches live gas prices and ETH price, updates `gas/SKILL.md` freshness stamp
 
 ## Skill File Format
 
-Every `SKILL.md` starts with YAML frontmatter:
+Every public `SKILL.md` starts with YAML frontmatter:
 
 ```
 ---
@@ -27,7 +27,7 @@ description: One-line description for bots to parse.
 ---
 ```
 
-Content follows a consistent pattern: "What You Probably Got Wrong" section first, then detailed corrections with code examples, tables, and verified data.
+The root `SKILL.md` is the only catalogue-style file: it gives quick correction summaries, defines fetch policy, and points to topic skills. Topic skills follow the usual pattern: "What You Probably Got Wrong" first, then detailed corrections with code examples, tables, and verified data.
 
 ## Key Conventions
 
@@ -39,7 +39,7 @@ Content follows a consistent pattern: "What You Probably Got Wrong" section firs
 ## Working With Content
 
 - Edit individual skill files in their directories (e.g., `gas/SKILL.md`)
-- The root `SKILL.md` is a generated aggregate — update individual skills, then regenerate
+- Edit the root `SKILL.md` when the routing contract, task mapping, skill taxonomy, or quick correction summaries change
 - Open `index.html` in a browser to test locally (skills load via relative paths)
 - Push to `master` to deploy via Vercel
 
